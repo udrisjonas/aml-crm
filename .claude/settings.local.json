@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/jonasudris/projects/**)",
+      "Bash(npx create-next-app@14 aml-crm --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git)",
+      "Bash(npx:*)",
+      "Bash(sudo chown:*)",
+      "Bash(npm cache:*)",
+      "Bash(npm config:*)",
+      "Bash(cd:*)",
+      "Bash(rsync:*)",
+      "Bash(npm install:*)",
+      "Bash(grep -E \"^autoprefixer$|^tailwindcss$|^postcss$\")",
+      "Bash(node:*)"
+    ]
+  }
+}
