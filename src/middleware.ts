@@ -37,7 +37,10 @@ export async function middleware(request: NextRequest) {
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth/confirm") ||   // invite token exchange
-    pathname.startsWith("/set-password");      // accessible after OTP; guarded by session check in the page
+    pathname.startsWith("/set-password") ||   // accessible after OTP; guarded by session check in the page
+    pathname.startsWith("/kyc/") ||           // public client-facing KYC form (token-gated)
+    pathname === "/privacy" ||
+    pathname === "/terms";
   if (!isPublic && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -50,6 +53,9 @@ export async function middleware(request: NextRequest) {
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
+
+  // Pass pathname to server components via header (used by layout for trial lockout)
+  supabaseResponse.headers.set("x-pathname", pathname);
 
   return supabaseResponse;
 }

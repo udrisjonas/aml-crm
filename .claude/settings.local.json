@@ -11,7 +11,18 @@
       "Bash(rsync:*)",
       "Bash(npm install:*)",
       "Bash(grep -E \"^autoprefixer$|^tailwindcss$|^postcss$\")",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({**d.get\\(''''dependencies'''',{}\\), **d.get\\(''''devDependencies'''',{}\\)}, indent=2\\)\\)\")",
+      "Bash(ls /Users/jonasudris/projects/aml-crm/src/app/\\\\\\(app\\\\\\)/)",
+      "Bash(ls:*)",
+      "Bash(grep -r \"relationship_purpose\\\\|relationship_frequency\\\\|relationship_use\" /Users/jonasudris/projects/aml-crm/supabase --include=*.sql)",
+      "Bash(wc:*)",
+      "Bash(grep -n \"relationship\\\\|purpose_of\\\\|purpose\\\\|Purpose\" /Users/jonasudris/projects/aml-crm/src/app/kyc/[token]/KycForm.tsx)",
+      "Bash(grep:*)",
+      "Bash(grep -n \"interface ClientDetailProps\\\\|export default function ClientDetail\\\\|individualDetails\\\\|IndividualDetails\" /Users/jonasudris/projects/aml-crm/src/app/\\\\\\(app\\\\\\)/clients/[id]/ClientDetail.tsx)",
+      "Bash(grep -n \"purpose_of_relationship\\\\|pep_status.*unknown\" /Users/jonasudris/projects/aml-crm/src/app/\\\\\\(app\\\\\\)/clients/[id]/ClientDetail.tsx)",
+      "Bash(grep -n \"selectCls\\\\|const inputCls\" /Users/jonasudris/projects/aml-crm/src/app/\\\\\\(app\\\\\\)/clients/[id]/ClientDetail.tsx)",
+      "Bash(grep -n \"interface FieldChange\\\\|changed_by\\\\|changed_at\\\\|field_name\" /Users/jonasudris/projects/aml-crm/src/app/\\\\\\(app\\\\\\)/clients/[id]/ClientDetail.tsx)"
     ]
   }
 }
