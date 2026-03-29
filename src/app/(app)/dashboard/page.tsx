@@ -346,17 +346,15 @@ export default async function DashboardPage() {
   const notifications = rawNotifs.slice(0, 20);
 
   // Activity feed — resolve actor and client names
-  const actorIds = [
-    ...new Set(
-      (recentChanges ?? [])
-        .map((c) => c.changed_by)
-        .filter(Boolean) as string[]
-    ),
-  ];
+  const actorIds = Array.from(new Set(
+    (recentChanges ?? [])
+      .map((c) => c.changed_by)
+      .filter(Boolean) as string[]
+  ));
 
-  const activityClientIds = [
-    ...new Set((recentChanges ?? []).map((c) => c.client_id)),
-  ];
+  const activityClientIds = Array.from(new Set(
+    (recentChanges ?? []).map((c) => c.client_id)
+  ));
 
   const [{ data: actorProfiles }, { data: activityClients }] =
     await Promise.all([
