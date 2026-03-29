@@ -252,7 +252,7 @@ export default async function DashboardPage() {
         title: "KYC form submitted — awaiting review",
         subtitle: extractClientName(c.individual_details),
         priority: "blue",
-        createdAt: (c as Record<string, string>).updated_at ?? (c as Record<string, string>).created_at,
+        createdAt: c.updated_at ?? c.created_at,
       });
     }
   }
