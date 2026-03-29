@@ -340,8 +340,16 @@ function Navbar({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
 
 function HeroSection({ lang }: { lang: Lang }) {
   return (
-    <section className="min-h-screen bg-[#F9FAFB] flex items-center" id="hero">
-      <div className="max-w-7xl mx-auto px-6 pt-24 pb-20 w-full">
+    <section
+      className="py-16 lg:py-24 flex items-center"
+      id="hero"
+      style={{
+        backgroundColor: "#FAFAFA",
+        backgroundImage: "radial-gradient(ellipse 80% 60% at 50% 40%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 100%), radial-gradient(circle, #D1D5DB 1.5px, transparent 1.5px)",
+        backgroundSize: "auto, 24px 24px",
+      }}
+    >
+      <div className="max-w-7xl mx-auto px-6 pt-16 w-full">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Left */}
           <div className="space-y-8">
@@ -651,6 +659,7 @@ function PricingSection({ lang }: { lang: Lang }) {
 
 // ── Testimonials ──────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function TestimonialsSection({ lang }: { lang: Lang }) {
   return (
     <section className="py-24 bg-[#F9FAFB]">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -46,11 +47,14 @@ export default function LoginForm({ logoUrl, companyName }: Props) {
         {/* Logo / Brand */}
         <div className="text-center mb-8">
           {logoUrl && !logoError ? (
-            <img
+            <Image
               src={logoUrl}
               alt={companyName ?? "Logo"}
+              width={160}
+              height={96}
               className="w-2/5 max-h-24 block mx-auto mb-4 object-contain"
               onError={() => setLogoError(true)}
+              unoptimized
             />
           ) : (
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 bg-blue-600">

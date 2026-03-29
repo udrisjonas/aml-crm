@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition, useEffect } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -155,13 +156,15 @@ export default function CompanySettingsForm({
           {/* Preview */}
           <div
             className="w-24 h-24 rounded-xl border-2 border-dashed border-slate-300
-              flex items-center justify-center bg-slate-50 overflow-hidden shrink-0"
+              relative flex items-center justify-center bg-slate-50 overflow-hidden shrink-0"
           >
             {logoPreview ? (
-              <img
+              <Image
                 src={logoPreview}
                 alt="Company logo"
-                className="w-full h-full object-contain"
+                fill
+                className="object-contain"
+                unoptimized
               />
             ) : (
               <svg

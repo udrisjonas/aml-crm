@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -93,11 +94,14 @@ export default function Sidebar({ userEmail, logoUrl, companyName, trialDaysRema
       <div className="px-5 py-4 border-b border-neutral-100">
         {logoUrl && !logoError ? (
           <div className="flex flex-col items-center gap-2">
-            <img
+            <Image
               src={logoUrl}
               alt={companyName ?? "Logo"}
+              width={160}
+              height={64}
               className="w-4/5 max-h-16 object-contain"
               onError={() => setLogoError(true)}
+              unoptimized
             />
             <div className="text-center">
               <p className="text-neutral-900 font-semibold text-sm leading-tight">
