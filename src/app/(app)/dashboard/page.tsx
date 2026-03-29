@@ -35,7 +35,7 @@ interface NotifItem {
 function extractClientName(details: unknown): string {
   const d = Array.isArray(details) ? details[0] : details;
   if (!d || typeof d !== "object") return "Unknown";
-  const obj = d as Record<string, string>;
+  const obj = d as { first_name?: string; last_name?: string };
   return `${obj.first_name ?? ""} ${obj.last_name ?? ""}`.trim() || "Unknown";
 }
 
@@ -268,7 +268,7 @@ export default async function DashboardPage() {
         title: "High risk client — review required",
         subtitle: extractClientName(c.individual_details),
         priority: "red",
-        createdAt: (c as Record<string, string>).updated_at,
+        createdAt: c.updated_at,
       });
     }
   }
@@ -284,7 +284,7 @@ export default async function DashboardPage() {
         title: "Enhanced due diligence triggered",
         subtitle: extractClientName(c.individual_details),
         priority: "red",
-        createdAt: (c as Record<string, string>).updated_at,
+        createdAt: c.updated_at,
       });
     }
   }
@@ -382,7 +382,7 @@ export default async function DashboardPage() {
       ? row.individual_details[0]
       : row.individual_details;
     if (details && typeof details === "object") {
-      const d = details as Record<string, string>;
+      const d = details as { first_name?: string; last_name?: string };
       clientNameMap[row.id] =
         `${d.first_name ?? ""} ${d.last_name ?? ""}`.trim() || "Unknown";
     }
