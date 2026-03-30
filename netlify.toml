@@ -1,0 +1,11 @@
+[[redirects]]
+  from = "http://amlcycle.com/*"
+  to = "https://amlcycle.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://www.amlcycle.com/*"
+  to = "https://amlcycle.com/:splat"
+  status = 301
+  force = true
