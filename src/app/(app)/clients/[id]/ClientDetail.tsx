@@ -18,6 +18,7 @@ import {
   type IndividualDetailsUpdate,
 } from "@/app/actions/clients";
 import type { RelationshipOption } from "@/app/(app)/clients/new/page";
+import { validateLithuanianPersonalCode } from "@/lib/validation/lithuanianPersonalCode";
 
 // alias for saving email in the send-to-client modal
 const saveEmailAction = updateIndividualDetailsAction;
@@ -754,6 +755,10 @@ function KycDetailsTab({
   });
   const [verifPending, startVerifTransition] = useTransition();
   const [verifError, setVerifError] = useState("");
+  const [personalCodeValid, setPersonalCodeValid] = useState<boolean | null>(null);
+  const [personalCodeError, setPersonalCodeError] = useState("");
+  const [issueDateError, setIssueDateError] = useState("");
+  const [expiryDateError, setExpiryDateError] = useState("");
 
   if (!d) return <p className="text-sm text-slate-400">No details on record.</p>;
 
@@ -767,6 +772,38 @@ function KycDetailsTab({
       onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
         setF(k, e.target.value as never),
     };
+  }
+
+  function handlePersonalCodeBlur(code: string) {
+    if (!code) { setPersonalCodeValid(null); setPersonalCodeError(""); return; }
+    const result = validateLithuanianPersonalCode(code);
+    setPersonalCodeValid(result.valid);
+    setPersonalCodeError(result.errorEn ?? "");
+    if (result.valid && result.dateOfBirth) {
+      setF("date_of_birth", result.dateOfBirth);
+    }
+  }
+
+  function handleIssueDateBlur() {
+    const issue = form.id_issue_date;
+    const dob = form.date_of_birth;
+    if (!issue) { setIssueDateError(""); return; }
+    if (dob && issue < dob) {
+      setIssueDateError("Issue date cannot be before date of birth");
+      return;
+    }
+    setIssueDateError("");
+  }
+
+  function handleExpiryDateBlur() {
+    const expiry = form.id_document_expiry;
+    const issue = form.id_issue_date;
+    if (!expiry) { setExpiryDateError(""); return; }
+    if (issue && expiry < issue) {
+      setExpiryDateError("Expiry date cannot be before issue date");
+      return;
+    }
+    setExpiryDateError("");
   }
 
   function handleSave() {
@@ -858,13 +895,54 @@ function KycDetailsTab({
                 </div>
               </div>
             )}
-            {form.is_lithuanian_resident
-              ? <KycField label="Personal ID number" isEditing={isEditing} {...txt("personal_id_number")} />
-              : <>
-                  <KycField label="Date of birth" type="date" isEditing={isEditing} {...txt("date_of_birth")} />
-                  <KycField label="Foreign ID number" isEditing={isEditing} {...txt("foreign_id_number")} />
-                </>
-            }
+            {form.is_lithuanian_resident ? (
+              isEditing ? (
+                <div className="py-2">
+                  <label className="block text-xs text-slate-500 mb-1">Personal ID number</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      className={
+                        personalCodeValid === true
+                          ? inputCls.replace("border-slate-300", "border-emerald-500") + " pr-8"
+                          : personalCodeValid === false
+                          ? inputCls.replace("border-slate-300", "border-red-500") + " pr-8"
+                          : inputCls
+                      }
+                      value={form.personal_id_number ?? ""}
+                      onChange={(e) => setF("personal_id_number", e.target.value || null)}
+                      onBlur={(e) => handlePersonalCodeBlur(e.target.value)}
+                      maxLength={11}
+                    />
+                    {personalCodeValid === true && (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </span>
+                    )}
+                    {personalCodeValid === false && (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </span>
+                    )}
+                  </div>
+                  {personalCodeError && <p className="text-xs text-red-600 mt-1">{personalCodeError}</p>}
+                  {personalCodeValid && form.date_of_birth && (
+                    <p className="text-xs text-emerald-600 mt-1">Date of birth auto-filled: {form.date_of_birth}</p>
+                  )}
+                </div>
+              ) : (
+                <KycField label="Personal ID number" isEditing={false} value={form.personal_id_number ?? ""} onChange={() => {}} />
+              )
+            ) : (
+              <>
+                <KycField label="Date of birth" type="date" isEditing={isEditing} {...txt("date_of_birth")} />
+                <KycField label="Foreign ID number" isEditing={isEditing} {...txt("foreign_id_number")} />
+              </>
+            )}
             <KycField label="Nationality" isEditing={isEditing} {...txt("nationality")} />
             <KycField label="Country of residence" isEditing={isEditing} {...txt("country_of_residence")} />
             <KycField label="Residential address" isEditing={isEditing} {...txt("residential_address")} />
@@ -888,7 +966,6 @@ function KycDetailsTab({
                   <option value="passport">Passport</option>
                   <option value="national_id">National ID card</option>
                   <option value="residence_permit">Residence permit</option>
-                  <option value="eu_driving_license">EU driving licence</option>
                 </select>
               </div>
             ) : (
@@ -898,21 +975,43 @@ function KycDetailsTab({
               </div>
             )}
             <KycField label="Document number" isEditing={isEditing} {...txt("id_document_number")} />
-            <KycField label="Issue date" type="date" isEditing={isEditing} {...txt("id_issue_date")} />
-            <KycField label="Expiry date" type="date" isEditing={isEditing} {...txt("id_document_expiry")} />
+            {isEditing ? (
+              <div className="py-2">
+                <label className="block text-xs text-slate-500 mb-1">Issue date</label>
+                <input type="date"
+                  className={issueDateError ? inputCls.replace("border-slate-300", "border-red-500") : inputCls}
+                  value={form.id_issue_date ?? ""}
+                  onChange={(e) => setF("id_issue_date", e.target.value || null)}
+                  onBlur={handleIssueDateBlur} />
+                {issueDateError && <p className="text-xs text-red-600 mt-1">{issueDateError}</p>}
+              </div>
+            ) : (
+              <KycField label="Issue date" isEditing={false} value={form.id_issue_date ?? ""} onChange={() => {}} />
+            )}
+            {isEditing ? (
+              <div className="py-2">
+                <label className="block text-xs text-slate-500 mb-1">Expiry date</label>
+                <input type="date"
+                  className={expiryDateError ? inputCls.replace("border-slate-300", "border-red-500") : inputCls}
+                  value={form.id_document_expiry ?? ""}
+                  onChange={(e) => setF("id_document_expiry", e.target.value || null)}
+                  onBlur={handleExpiryDateBlur} />
+                {expiryDateError && <p className="text-xs text-red-600 mt-1">{expiryDateError}</p>}
+              </div>
+            ) : (
+              <KycField label="Expiry date" isEditing={false} value={form.id_document_expiry ?? ""} onChange={() => {}} />
+            )}
             <KycField label="Issuing country" isEditing={isEditing} {...txt("id_issuing_country")} />
           </div>
         </div>
 
-        {/* Source of funds */}
+        {/* Occupation & purpose */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="px-5 py-3.5 border-b border-slate-100">
-            <h3 className="text-sm font-semibold text-slate-700">Source of funds & purpose</h3>
+            <h3 className="text-sm font-semibold text-slate-700">Occupation & purpose</h3>
           </div>
           <div className="px-5 py-1">
             <KycField label="Occupation" isEditing={isEditing} {...txt("occupation")} />
-            <KycField label="Source of funds" isEditing={isEditing} {...txt("source_of_funds")} />
-            <KycField label="Source of wealth" isEditing={isEditing} {...txt("source_of_wealth")} />
             {/* Purpose of relationship — dropdown from templates */}
             {isEditing ? (
               <div className="py-2">

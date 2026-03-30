@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { createIndividualClientAction, type CreateIndividualClientData } from "@/app/actions/clients";
+import { validateLithuanianPersonalCode } from "@/lib/validation/lithuanianPersonalCode";
 import type { RelationshipOption } from "./page";
 
 // ── Shared input style ────────────────────────────────────────────────────────
@@ -128,10 +129,10 @@ const defaultForm: CreateIndividualClientData = {
   personal_id_number: "",
   date_of_birth: "",
   foreign_id_number: "",
-  nationality: "",
+  nationality: "LT",
   is_stateless: false,
   id_issuing_country: "",
-  country_of_residence: "",
+  country_of_residence: "LT",
   residential_address: "",
   same_correspondence: true,
   correspondence_address: "",
@@ -267,6 +268,10 @@ function StepIndividualForm({
   const [form, setForm] = useState<CreateIndividualClientData>(defaultForm);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [personalCodeValid, setPersonalCodeValid] = useState<boolean | null>(null);
+  const [personalCodeError, setPersonalCodeError] = useState("");
+  const [issueDateError, setIssueDateError] = useState("");
+  const [expiryDateError, setExpiryDateError] = useState("");
 
   function set<K extends keyof CreateIndividualClientData>(
     key: K,
@@ -281,6 +286,39 @@ function StepIndividualForm({
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
         set(key, e.target.value as never),
     };
+  }
+
+  function handlePersonalCodeBlur() {
+    const code = form.personal_id_number.trim();
+    if (!code) { setPersonalCodeValid(null); setPersonalCodeError(""); return; }
+    const result = validateLithuanianPersonalCode(code);
+    setPersonalCodeValid(result.valid);
+    setPersonalCodeError(result.errorEn ?? "");
+    if (result.valid && result.dateOfBirth) {
+      set("date_of_birth", result.dateOfBirth);
+    }
+  }
+
+  function handleIssueDateBlur() {
+    const issue = form.id_issue_date;
+    const dob = form.date_of_birth;
+    if (!issue) { setIssueDateError(""); return; }
+    if (dob && issue < dob) {
+      setIssueDateError("Issue date cannot be before date of birth");
+      return;
+    }
+    setIssueDateError("");
+  }
+
+  function handleExpiryDateBlur() {
+    const expiry = form.id_document_expiry;
+    const issue = form.id_issue_date;
+    if (!expiry) { setExpiryDateError(""); return; }
+    if (issue && expiry < issue) {
+      setExpiryDateError("Expiry date cannot be before issue date");
+      return;
+    }
+    setExpiryDateError("");
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -345,7 +383,13 @@ function StepIndividualForm({
                 <button
                   key={type}
                   type="button"
-                  onClick={() => set("is_lithuanian_resident", type === "lt")}
+                  onClick={() => {
+                    const isLt = type === "lt";
+                    set("is_lithuanian_resident", isLt);
+                    set("country_of_residence", isLt ? "LT" : "");
+                    setPersonalCodeValid(null);
+                    setPersonalCodeError("");
+                  }}
                   className={`px-4 py-2 text-sm font-medium transition-colors ${
                     active
                       ? "bg-blue-600 text-white"
@@ -361,8 +405,42 @@ function StepIndividualForm({
           {form.is_lithuanian_resident ? (
             <Field label="Personal identification number"
               hint="11-digit Lithuanian personal ID (asmens kodas)">
-              <input type="text" className={inputCls} {...bindText("personal_id_number")}
-                placeholder="38901011234" maxLength={11} />
+              <div className="relative">
+                <input
+                  type="text"
+                  className={
+                    personalCodeValid === true
+                      ? inputCls.replace("border-slate-300", "border-emerald-500") + " pr-8"
+                      : personalCodeValid === false
+                      ? inputCls.replace("border-slate-300", "border-red-500") + " pr-8"
+                      : inputCls
+                  }
+                  {...bindText("personal_id_number")}
+                  placeholder="38901011234"
+                  maxLength={11}
+                  onBlur={handlePersonalCodeBlur}
+                />
+                {personalCodeValid === true && (
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </span>
+                )}
+                {personalCodeValid === false && (
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </span>
+                )}
+              </div>
+              {personalCodeError && (
+                <p className="text-xs text-red-600 mt-1">{personalCodeError}</p>
+              )}
+              {personalCodeValid && form.date_of_birth && (
+                <p className="text-xs text-emerald-600 mt-1">Date of birth auto-filled: {form.date_of_birth}</p>
+              )}
             </Field>
           ) : (
             <>
@@ -429,7 +507,6 @@ function StepIndividualForm({
               <option value="passport">Passport</option>
               <option value="national_id">National ID card</option>
               <option value="residence_permit">Residence permit</option>
-              <option value="eu_driving_license">EU driving licence</option>
             </select>
           </Field>
 
@@ -439,10 +516,18 @@ function StepIndividualForm({
                 placeholder="AB123456" />
             </Field>
             <Field label="Issue date">
-              <input type="date" className={inputCls} {...bindText("id_issue_date")} />
+              <input type="date"
+                className={issueDateError ? inputCls.replace("border-slate-300", "border-red-500") : inputCls}
+                {...bindText("id_issue_date")}
+                onBlur={handleIssueDateBlur} />
+              {issueDateError && <p className="text-xs text-red-600 mt-1">{issueDateError}</p>}
             </Field>
             <Field label="Expiry date">
-              <input type="date" className={inputCls} {...bindText("id_document_expiry")} />
+              <input type="date"
+                className={expiryDateError ? inputCls.replace("border-slate-300", "border-red-500") : inputCls}
+                {...bindText("id_document_expiry")}
+                onBlur={handleExpiryDateBlur} />
+              {expiryDateError && <p className="text-xs text-red-600 mt-1">{expiryDateError}</p>}
             </Field>
           </Row>
 
@@ -585,36 +670,11 @@ function StepIndividualForm({
           )}
         </Section>
 
-        {/* ── Section 5: Source of funds ───────────────────────────────── */}
-        <Section title="5. Source of funds & purpose">
+        {/* ── Section 5: Occupation & purpose ──────────────────────────── */}
+        <Section title="5. Occupation & purpose">
           <Field label="Occupation / business activity">
             <input type="text" className={inputCls} {...bindText("occupation")}
               placeholder="Software engineer" />
-          </Field>
-
-          <Field label="Source of funds"
-            hint="Where do the funds used in this transaction come from?">
-            <select className={selectCls} {...bindText("source_of_funds")}>
-              <option value="">— Select —</option>
-              <option value="Employment income">Employment income / salary</option>
-              <option value="Business income">Business income</option>
-              <option value="Pension">Pension</option>
-              <option value="Savings">Accumulated savings</option>
-              <option value="Inheritance">Inheritance / gift</option>
-              <option value="Investment returns">Investment returns</option>
-              <option value="Property sale">Property sale proceeds</option>
-              <option value="Other">Other</option>
-            </select>
-          </Field>
-
-          <Field label="Source of wealth"
-            hint="How was the client's overall wealth accumulated?">
-            <textarea
-              className={inputCls + " resize-none"}
-              rows={2}
-              {...bindText("source_of_wealth")}
-              placeholder="e.g. Accumulated savings from 15 years of employment and property investments…"
-            />
           </Field>
 
           <Field label="Purpose of business relationship">

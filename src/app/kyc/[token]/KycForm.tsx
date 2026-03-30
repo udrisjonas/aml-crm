@@ -337,8 +337,6 @@ export default function KycForm({
     high_risk_country_details:         str("high_risk_country_details"),
     cash_transactions_above_threshold: bool("cash_transactions_above_threshold"),
     occupation:                        str("occupation"),
-    source_of_funds:                   str("source_of_funds"),
-    source_of_wealth:                  str("source_of_wealth"),
     purpose_of_relationship:           str("purpose_of_relationship"),
     relationship_frequency:            str("relationship_frequency"),
     relationship_use:                  str("relationship_use"),
@@ -365,8 +363,8 @@ export default function KycForm({
         pep_details:              form.pep_details || null,
         high_risk_country_details: form.high_risk_country_details || null,
         occupation:               form.occupation || null,
-        source_of_funds:          form.source_of_funds || null,
-        source_of_wealth:         form.source_of_wealth || null,
+        source_of_funds:          null,
+        source_of_wealth:         null,
         purpose_of_relationship:  form.purpose_of_relationship || null,
         relationship_frequency:   form.relationship_frequency || null,
         relationship_use:         form.relationship_use || null,
@@ -600,26 +598,6 @@ export default function KycForm({
           <Field label={t.fields.occupation} required>
             <input type="text" className={inputCls} value={form.occupation}
               onChange={(e) => set("occupation", e.target.value)} />
-          </Field>
-          <Field label={t.fields.source_of_funds} required>
-            <select className={selectCls} value={form.source_of_funds}
-              onChange={(e) => set("source_of_funds", e.target.value)}>
-              <option value="">{language === "lt" ? "Pasirinkti…" : "Select…"}</option>
-              <option value="employment">{language === "lt" ? "Darbo pajamos" : "Employment income"}</option>
-              <option value="business">{language === "lt" ? "Verslo pajamos" : "Business income"}</option>
-              <option value="investments">{language === "lt" ? "Investicinės pajamos" : "Investment income"}</option>
-              <option value="pension">{language === "lt" ? "Pensija" : "Pension"}</option>
-              <option value="inheritance">{language === "lt" ? "Paveldėjimas / dovana" : "Inheritance / gift"}</option>
-              <option value="real_estate">{language === "lt" ? "Nekilnojamojo turto pajamos" : "Real estate income"}</option>
-              <option value="savings">{language === "lt" ? "Santaupos" : "Savings"}</option>
-              <option value="other">{language === "lt" ? "Kita" : "Other"}</option>
-            </select>
-          </Field>
-          <Field label={t.fields.source_of_wealth}>
-            <textarea rows={3} className={inputCls + " resize-none"}
-              value={form.source_of_wealth}
-              onChange={(e) => set("source_of_wealth", e.target.value)}
-              placeholder={language === "lt" ? "Kaip sukaupėte turtą?" : "How did you accumulate your wealth?"} />
           </Field>
         </Section>
 
