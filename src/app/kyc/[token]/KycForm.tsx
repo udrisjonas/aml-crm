@@ -336,7 +336,6 @@ export default function KycForm({
     has_high_risk_country_connections: bool("has_high_risk_country_connections"),
     high_risk_country_details:         str("high_risk_country_details"),
     cash_transactions_above_threshold: bool("cash_transactions_above_threshold"),
-    occupation:                        str("occupation"),
     purpose_of_relationship:           str("purpose_of_relationship"),
     relationship_frequency:            str("relationship_frequency"),
     relationship_use:                  str("relationship_use"),
@@ -362,7 +361,7 @@ export default function KycForm({
         beneficial_owner_info:    form.beneficial_owner_info || null,
         pep_details:              form.pep_details || null,
         high_risk_country_details: form.high_risk_country_details || null,
-        occupation:               form.occupation || null,
+        occupation:               null,
         source_of_funds:          null,
         source_of_wealth:         null,
         purpose_of_relationship:  form.purpose_of_relationship || null,
@@ -518,7 +517,10 @@ export default function KycForm({
                 }`}>
                 <input type="radio" className="mt-0.5 accent-blue-600"
                   checked={form.pep_status === val}
-                  onChange={() => set("pep_status", val)} />
+                  onChange={() => {
+                    set("pep_status", val);
+                    if (val === "yes") set("pep_self_declared", true);
+                  }} />
                 <span className="text-sm text-slate-800 leading-relaxed">
                   {val === "yes" ? t.fields.pep_yes : t.fields.pep_no}
                 </span>
@@ -526,11 +528,30 @@ export default function KycForm({
             ))}
           </div>
           {form.pep_status === "yes" && (
-            <Field label={t.fields.pep_details} required>
-              <textarea rows={3} className={inputCls + " resize-none"}
-                value={form.pep_details}
-                onChange={(e) => set("pep_details", e.target.value)} />
-            </Field>
+            <>
+              <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">
+                    {language === "lt"
+                      ? "Klientas yra politikoje dalyvaujantis asmuo (PEP)."
+                      : "Client is a Politically Exposed Person (PEP)."}
+                  </p>
+                  <p className="text-sm text-amber-700 mt-0.5">
+                    {language === "lt"
+                      ? "Išplėstinė kliento patikra (EDD) bus inicijuota automatiškai po KYC pateikimo."
+                      : "Enhanced Due Diligence (EDD) will be automatically initiated after KYC submission."}
+                  </p>
+                </div>
+              </div>
+              <Field label={t.fields.pep_details} required>
+                <textarea rows={3} className={inputCls + " resize-none"}
+                  value={form.pep_details}
+                  onChange={(e) => set("pep_details", e.target.value)} />
+              </Field>
+            </>
           )}
           <label className="flex items-start gap-3 cursor-pointer py-2 min-h-[44px]">
             <input type="checkbox" className="mt-0.5 w-5 h-5 accent-blue-600 shrink-0"
@@ -591,14 +612,6 @@ export default function KycForm({
               </label>
             ))}
           </div>
-        </Section>
-
-        {/* ── Source of funds ── */}
-        <Section title={t.sections.source}>
-          <Field label={t.fields.occupation} required>
-            <input type="text" className={inputCls} value={form.occupation}
-              onChange={(e) => set("occupation", e.target.value)} />
-          </Field>
         </Section>
 
         {/* ── Purpose ── */}

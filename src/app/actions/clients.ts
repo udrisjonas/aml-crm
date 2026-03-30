@@ -144,6 +144,14 @@ export async function createIndividualClientAction(
       return { error: detailsError.message };
     }
 
+    // Trigger EDD automatically when client is a PEP
+    if (data.pep_status === "yes") {
+      await admin
+        .from("clients")
+        .update({ edd_status: "triggered", client_status: "edd", updated_at: new Date().toISOString() })
+        .eq("id", newClientId);
+    }
+
     if (data.is_represented && data.rep_first_name && data.rep_last_name) {
       const { error: repError } = await admin
         .from("client_representatives")
@@ -249,6 +257,15 @@ export async function updateIndividualDetailsAction(
     .update({ ...data, updated_at: new Date().toISOString() })
     .eq("id", detailsId);
   if (error) return { error: error.message };
+
+  // Trigger EDD when broker sets PEP status to yes
+  if (data.pep_status === "yes") {
+    await admin
+      .from("clients")
+      .update({ edd_status: "triggered", client_status: "edd", updated_at: new Date().toISOString() })
+      .eq("id", clientId);
+  }
+
   revalidatePath(`/clients/${clientId}`);
   return {};
 }
@@ -678,11 +695,16 @@ export async function submitKycFormAction(
     .update({ used_at: new Date().toISOString(), is_active: false })
     .eq("id", tokenId);
 
-  // Update client status
-  await admin
-    .from("clients")
-    .update({ kyc_status: "client_completed", updated_at: new Date().toISOString() })
-    .eq("id", clientId);
+  // Update client status — combine EDD trigger if client is or self-declares as PEP
+  const clientUpdate: Record<string, string> = {
+    kyc_status: "client_completed",
+    updated_at: new Date().toISOString(),
+  };
+  if (data.pep_status === "yes" || data.pep_self_declared) {
+    clientUpdate.edd_status = "triggered";
+    clientUpdate.client_status = "edd";
+  }
+  await admin.from("clients").update(clientUpdate).eq("id", clientId);
 
   return {};
 }

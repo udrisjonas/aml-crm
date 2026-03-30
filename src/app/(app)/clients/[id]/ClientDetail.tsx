@@ -1011,7 +1011,6 @@ function KycDetailsTab({
             <h3 className="text-sm font-semibold text-slate-700">Occupation & purpose</h3>
           </div>
           <div className="px-5 py-1">
-            <KycField label="Occupation" isEditing={isEditing} {...txt("occupation")} />
             {/* Purpose of relationship — dropdown from templates */}
             {isEditing ? (
               <div className="py-2">
@@ -1778,6 +1777,20 @@ export default function ClientDetail({
             </div>
           </div>
         </div>
+
+        {/* EDD banner */}
+        {client.edd_status === "triggered" && (
+          <div className="px-8 pb-3">
+            <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+              <svg className="w-5 h-5 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <p className="text-sm font-semibold text-red-800">
+                EDD triggered — Client is a PEP. Enhanced Due Diligence required.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Tab nav */}
         <div className="px-8 flex gap-0">

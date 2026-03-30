@@ -652,6 +652,17 @@ function StepIndividualForm({
 
           {form.pep_status === "yes" && (
             <>
+              <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">EDD Required</p>
+                  <p className="text-sm text-amber-700 mt-0.5">
+                    Client is a Politically Exposed Person (PEP). Enhanced Due Diligence (EDD) will be automatically initiated after KYC submission.
+                  </p>
+                </div>
+              </div>
               <Toggle
                 checked={form.pep_self_declared}
                 onChange={(v) => set("pep_self_declared", v)}
@@ -670,13 +681,8 @@ function StepIndividualForm({
           )}
         </Section>
 
-        {/* ── Section 5: Occupation & purpose ──────────────────────────── */}
-        <Section title="5. Occupation & purpose">
-          <Field label="Occupation / business activity">
-            <input type="text" className={inputCls} {...bindText("occupation")}
-              placeholder="Software engineer" />
-          </Field>
-
+        {/* ── Section 5: Purpose ───────────────────────────────────────── */}
+        <Section title="5. Purpose of business relationship">
           <Field label="Purpose of business relationship">
             <select className={selectCls} {...bindText("purpose_of_relationship")}>
               <option value="">— Select —</option>
