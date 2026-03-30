@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { Eye } from "lucide-react";
 import { useRoles } from "@/context/RolesContext";
 
 export interface ClientRow {
@@ -249,7 +250,12 @@ export default function ClientsTable({ clients }: ClientsTableProps) {
                             {initials(client)}
                           </span>
                         </div>
-                        <span className="font-medium text-slate-800">{name}</span>
+                        <Link
+                          href={`/clients/${client.id}`}
+                          className="font-medium text-slate-800 hover:text-slate-900 hover:underline"
+                        >
+                          {name}
+                        </Link>
                       </div>
                     </td>
 
@@ -292,12 +298,13 @@ export default function ClientsTable({ clients }: ClientsTableProps) {
                     </td>
 
                     {/* Action */}
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4">
                       <Link
                         href={`/clients/${client.id}`}
-                        className="text-blue-600 hover:text-blue-700 text-xs font-medium"
+                        className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        aria-label={`View ${name}`}
                       >
-                        View
+                        <Eye className="w-4 h-4" />
                       </Link>
                     </td>
                   </tr>
