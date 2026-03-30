@@ -15,9 +15,9 @@ export default async function UsersPage() {
   const admin = createAdminClient();
 
   const [
-    { data: users,          error: usersError },
-    { data: roles,          error: rolesError },
-    { data: pendingInvites, error: pendingError },
+    { data: users },
+    { data: roles },
+    { data: pendingInvites },
   ] = await Promise.all([
     admin
       .from("profiles")
