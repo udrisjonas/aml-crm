@@ -157,10 +157,10 @@ const selectCls =
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
+      <div className="px-4 sm:px-6 py-4 border-b border-slate-100 bg-slate-50">
         <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
       </div>
-      <div className="px-6 py-5 space-y-4">{children}</div>
+      <div className="px-4 sm:px-6 py-5 space-y-4">{children}</div>
     </div>
   );
 }
@@ -252,35 +252,34 @@ function DocUpload({
   }
 
   return (
-    <div>
-      <div className="flex items-center gap-3">
-        <label className="text-sm text-slate-700 w-36 shrink-0">{label}</label>
-        {state === "done" ? (
-          <span className="flex items-center gap-1.5 text-sm text-emerald-700 font-medium">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            {t.uploaded}: <span className="font-normal text-slate-600 truncate max-w-[200px]">{fileName}</span>
-          </span>
-        ) : (
-          <label className={`flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium cursor-pointer transition-colors
-            ${state === "uploading" ? "text-slate-400 cursor-not-allowed" : "text-slate-700 hover:bg-slate-50"}`}>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            {state === "uploading" ? t.uploading : t.upload}
-            <input
-              type="file"
-              className="sr-only"
-              disabled={state === "uploading"}
-              accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
-              onChange={handleFile}
-            />
-          </label>
-        )}
-      </div>
-      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-slate-700">{label}</p>
+      {state === "done" ? (
+        <span className="flex items-center gap-1.5 text-sm text-emerald-700 font-medium py-2">
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          {t.uploaded}: <span className="font-normal text-slate-600 truncate">{fileName}</span>
+        </span>
+      ) : (
+        <label className={`flex items-center justify-center gap-2 w-full px-4 py-3 border border-slate-300
+          rounded-lg text-sm font-medium cursor-pointer transition-colors min-h-[44px]
+          ${state === "uploading" ? "text-slate-400 cursor-not-allowed bg-slate-50" : "text-slate-700 hover:bg-slate-50 active:bg-slate-100"}`}>
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          {state === "uploading" ? t.uploading : t.upload}
+          <input
+            type="file"
+            className="sr-only"
+            disabled={state === "uploading"}
+            accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+            onChange={handleFile}
+          />
+        </label>
+      )}
+      {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
 }
@@ -387,7 +386,7 @@ export default function KycForm({
   if (submitted) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 max-w-lg w-full text-center space-y-4">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-10 max-w-lg w-full text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
             <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -404,11 +403,11 @@ export default function KycForm({
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <div className="bg-white border-b border-slate-200">
-        <div className="max-w-2xl mx-auto px-6 py-6">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5 sm:py-6">
           {companyName && (
             <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">{companyName}</p>
           )}
-          <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">{t.title}</h1>
           <p className="text-sm text-slate-500 mt-1">{t.subtitle}</p>
           <p className="text-xs text-amber-700 mt-2 font-medium">
             {t.expires}: {expiryStr}
@@ -417,21 +416,23 @@ export default function KycForm({
       </div>
 
       {/* Form */}
-      <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-5 sm:space-y-6">
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
         )}
 
         {/* ── Personal information ── */}
         <Section title={t.sections.personal}>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label={t.fields.first_name} required>
               <input type="text" className={inputCls} value={form.first_name}
-                onChange={(e) => set("first_name", e.target.value)} />
+                onChange={(e) => set("first_name", e.target.value)}
+                onFocus={(e) => e.target.scrollIntoView({ behavior: "smooth", block: "center" })} />
             </Field>
             <Field label={t.fields.last_name} required>
               <input type="text" className={inputCls} value={form.last_name}
-                onChange={(e) => set("last_name", e.target.value)} />
+                onChange={(e) => set("last_name", e.target.value)}
+                onFocus={(e) => e.target.scrollIntoView({ behavior: "smooth", block: "center" })} />
             </Field>
           </div>
           <Field label={t.fields.nationality}>
@@ -451,14 +452,16 @@ export default function KycForm({
               onChange={(e) => set("correspondence_address", e.target.value)}
               placeholder={language === "lt" ? "Jei skiriasi nuo gyvenamosios vietos" : "If different from residential address"} />
           </Field>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label={t.fields.phone}>
               <input type="tel" className={inputCls} value={form.phone}
-                onChange={(e) => set("phone", e.target.value)} />
+                onChange={(e) => set("phone", e.target.value)}
+                onFocus={(e) => e.target.scrollIntoView({ behavior: "smooth", block: "center" })} />
             </Field>
             <Field label={t.fields.email}>
               <input type="email" className={inputCls} value={form.email}
-                onChange={(e) => set("email", e.target.value)} />
+                onChange={(e) => set("email", e.target.value)}
+                onFocus={(e) => e.target.scrollIntoView({ behavior: "smooth", block: "center" })} />
             </Field>
           </div>
         </Section>
@@ -531,8 +534,8 @@ export default function KycForm({
                 onChange={(e) => set("pep_details", e.target.value)} />
             </Field>
           )}
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input type="checkbox" className="mt-0.5 accent-blue-600"
+          <label className="flex items-start gap-3 cursor-pointer py-2 min-h-[44px]">
+            <input type="checkbox" className="mt-0.5 w-5 h-5 accent-blue-600 shrink-0"
               checked={form.pep_self_declared}
               onChange={(e) => set("pep_self_declared", e.target.checked)} />
             <span className="text-sm text-slate-700">{t.fields.pep_self_declared}</span>

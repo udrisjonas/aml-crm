@@ -98,7 +98,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           companyName={settings?.company_name ?? null}
           trialDaysRemaining={trialDaysRemaining}
         />
-        <main className="flex-1 bg-stone-50 overflow-auto flex flex-col">
+        <main className="flex-1 bg-stone-50 overflow-auto flex flex-col pt-14 lg:pt-0">
           {trialDaysRemaining !== null && trialDaysRemaining <= 4 && trialDaysRemaining > 0 && (
             <TrialBanner daysRemaining={trialDaysRemaining} />
           )}
