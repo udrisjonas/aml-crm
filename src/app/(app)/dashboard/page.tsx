@@ -385,9 +385,9 @@ export default async function DashboardPage() {
         referenceId: doc.id,
         href: "/documents/aml",
         title: "Compliance document review overdue",
-        subtitle: (doc as { title: string }).title,
+        subtitle: doc.title,
         priority: "amber",
-        createdAt: (doc as { next_review_date: string }).next_review_date,
+        createdAt: doc.next_review_date ?? now.toISOString(),
       });
     }
   }
