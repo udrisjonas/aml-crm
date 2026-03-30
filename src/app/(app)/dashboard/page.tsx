@@ -227,7 +227,7 @@ export default async function DashboardPage() {
     // Overdue compliance documents
     admin
       .from("compliance_documents")
-      .select("id, document_type, title, next_review_date")
+      .select("id, document_type, title, next_review_date, status")
       .eq("tenant_id", "default")
       .eq("status", "active")
       .not("next_review_date", "is", null)
