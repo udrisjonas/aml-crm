@@ -15,6 +15,16 @@ type ComplianceDocOverdue = {
   document_type: string;
 };
 
+type RecentChange = {
+  id: string;
+  client_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_by: string | null;
+  changed_at: string;
+};
+
 const PRIORITY_ORDER = { red: 0, amber: 1, blue: 2 } as const;
 
 const NOTIF_COLOR: Record<"red" | "amber" | "blue", string> = {
@@ -144,9 +154,9 @@ export default async function DashboardPage() {
     { data: recentDocs },
     { data: overdueReviews },
     { data: dismissed },
-    { data: recentChanges },
     { data: overdueComplianceDocs },
     { data: activeResponsiblePersons },
+    { data: recentChanges },
   ] = await Promise.all([
     // Stats
     admin
@@ -260,7 +270,8 @@ export default async function DashboardPage() {
       )
       .in("client_id", safeIds)
       .order("changed_at", { ascending: false })
-      .limit(30),
+      .limit(30)
+      .returns<RecentChange[]>(),
   ]);
 
   // Build dismissed lookup set
@@ -412,14 +423,12 @@ export default async function DashboardPage() {
   // Activity feed — resolve actor and client names
   const actorIds = Array.from(new Set(
     (recentChanges ?? [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((c) => (c as any).changed_by)
+      .map((c) => c.changed_by)
       .filter(Boolean) as string[]
   ));
 
   const activityClientIds = Array.from(new Set(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (recentChanges ?? []).map((c) => (c as any).client_id)
+    (recentChanges ?? []).map((c) => c.client_id)
   ));
 
   const [{ data: actorProfiles }, { data: activityClients }] =
@@ -456,8 +465,8 @@ export default async function DashboardPage() {
     id: c.id,
     clientId: c.client_id,
     clientName: clientNameMap[c.client_id] ?? "Unknown",
-    fieldName: c.field_name as string,
-    changedAt: c.changed_at as string,
+    fieldName: c.field_name,
+    changedAt: c.changed_at,
     actorName: c.changed_by ? (actorMap[c.changed_by] ?? null) : null,
   }));
 
