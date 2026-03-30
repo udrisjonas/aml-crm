@@ -7,6 +7,14 @@ import RelativeTime from "./RelativeTime";
 
 export const dynamic = "force-dynamic";
 
+type ComplianceDocOverdue = {
+  id: string;
+  title: string;
+  next_review_date: string | null;
+  status: string;
+  document_type: string;
+};
+
 const PRIORITY_ORDER = { red: 0, amber: 1, blue: 2 } as const;
 
 const NOTIF_COLOR: Record<"red" | "amber" | "blue", string> = {
@@ -233,7 +241,8 @@ export default async function DashboardPage() {
       .not("next_review_date", "is", null)
       .lt("next_review_date", now.toISOString().slice(0, 10))
       .order("next_review_date", { ascending: true })
-      .limit(20),
+      .limit(20)
+      .returns<ComplianceDocOverdue[]>(),
 
     // Active responsible persons
     admin
