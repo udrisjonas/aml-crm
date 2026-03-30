@@ -385,7 +385,7 @@ export default async function DashboardPage() {
   }
 
   // Overdue compliance documents
-  for (const doc of overdueComplianceDocs ?? []) {
+  for (const doc of (overdueComplianceDocs ?? []) as Array<{ id: string; title: string; next_review_date: string | null; status: string }>) {
     const key = `COMPLIANCE_DOC_OVERDUE::${doc.id}`;
     if (!dismissedSet.has(key)) {
       rawNotifs.push({
