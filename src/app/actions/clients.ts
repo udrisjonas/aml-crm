@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { extractRoleName } from "@/types/database";
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ export async function createIndividualClientAction(
     .eq("user_id", user.id);
 
   const roleNames = (userRoles ?? []).map(
-    (r) => ((r as unknown as { roles: { name: string } }).roles?.name ?? "")
+    (r) => extractRoleName(r)
   );
   const isBroker = roleNames.includes("broker");
 

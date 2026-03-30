@@ -40,7 +40,6 @@ export default async function NewClientPage() {
   if (error) {
     console.error("[NewClientPage] questionnaire_templates fetch error:", error);
   }
-  console.log("[NewClientPage] template rows:", JSON.stringify(templateRows));
 
   const find = (key: string) =>
     parseOptions(templateRows?.find((r) => r.field_key === key)?.options_lt);

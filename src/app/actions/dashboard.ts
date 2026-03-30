@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { extractRoleName } from "@/types/database";
 
 async function getUserScope() {
   const supabase = createClient();
@@ -17,7 +18,7 @@ async function getUserScope() {
     .eq("user_id", user.id);
 
   const roleNames = (userRoles ?? []).map(
-    (r) => ((r as unknown as { roles: { name: string } }).roles?.name ?? "")
+    (r) => extractRoleName(r)
   );
 
   const isBroker =

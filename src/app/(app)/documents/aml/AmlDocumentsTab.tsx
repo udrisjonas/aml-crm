@@ -190,7 +190,7 @@ function UploadModal({ documents, prefillType, onClose, onSuccess }: UploadModal
             </svg>
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+        <form id="upload-doc-form" onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
           )}
@@ -312,7 +312,7 @@ function UploadModal({ documents, prefillType, onClose, onSuccess }: UploadModal
             className="px-4 py-2 border border-slate-300 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50">
             Cancel
           </button>
-          <button onClick={handleSubmit as unknown as React.MouseEventHandler}
+          <button form="upload-doc-form" type="submit"
             disabled={isUploading}
             className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-medium rounded-lg transition">
             {isUploading ? "Uploading…" : "Upload document"}

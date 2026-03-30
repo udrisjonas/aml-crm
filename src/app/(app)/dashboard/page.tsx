@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { extractRoleName } from "@/types/database";
 import Link from "next/link";
 import ClientSearchBar from "./ClientSearchBar";
 import DismissButton from "./DismissButton";
@@ -106,7 +107,7 @@ export default async function DashboardPage() {
     .eq("user_id", user.id);
 
   const roleNames = (userRoles ?? []).map(
-    (r) => ((r as unknown as { roles: { name: string } }).roles?.name ?? "")
+    (r) => extractRoleName(r)
   );
 
   const isBroker =

@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { extractRoleName } from "@/types/database";
 
 async function getAuthenticatedUser() {
   const supabase = createClient();
@@ -20,7 +21,7 @@ async function assertBillingRole() {
     .eq("user_id", user.id);
 
   const names = (data ?? []).map(
-    (r) => ((r as unknown as { roles: { name: string } }).roles?.name)
+    (r) => extractRoleName(r)
   );
   const allowed = names.includes("system_admin") || names.includes("senior_manager");
   if (!allowed) throw new Error("Forbidden");

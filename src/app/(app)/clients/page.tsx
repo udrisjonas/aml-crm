@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import ClientsTable, { type ClientRow } from "./ClientsTable";
+import { extractRoleName } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function ClientsPage() {
     .eq("user_id", user.id);
 
   const roleNames = (userRoles ?? []).map(
-    (r) => ((r as unknown as { roles: { name: string } }).roles?.name ?? "")
+    (r) => extractRoleName(r)
   );
 
   const isBroker = roleNames.includes("broker") && !roleNames.includes("system_admin") && !roleNames.includes("aml_officer") && !roleNames.includes("senior_manager");

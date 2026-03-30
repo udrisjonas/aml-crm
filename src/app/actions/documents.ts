@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { extractRoleName } from "@/types/database";
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ async function assertCanManage() {
     .eq("user_id", user.id);
 
   const names = (data ?? []).map(
-    (r) => ((r as unknown as { roles: { name: string } }).roles?.name ?? "")
+    (r) => extractRoleName(r)
   );
 
   if (!names.includes("system_admin") && !names.includes("senior_manager")) {

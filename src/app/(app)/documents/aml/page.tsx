@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { extractRoleName } from "@/types/database";
 import AmlDocumentsPage from "./AmlDocumentsPage";
 import type { ComplianceDocument, ResponsiblePerson, ProfileOption } from "./AmlDocumentsPage";
 
@@ -23,7 +24,7 @@ export default async function AmlDocumentsServerPage({
     .eq("user_id", user.id);
 
   const roleNames = (userRolesData ?? []).map(
-    (r) => ((r as unknown as { roles: { name: string } }).roles?.name ?? "")
+    (r) => extractRoleName(r)
   );
   const canManage =
     roleNames.includes("system_admin") || roleNames.includes("senior_manager");

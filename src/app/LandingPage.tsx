@@ -657,42 +657,6 @@ function PricingSection({ lang }: { lang: Lang }) {
   );
 }
 
-// ── Testimonials ──────────────────────────────────────────────────────────────
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function TestimonialsSection({ lang }: { lang: Lang }) {
-  return (
-    <section className="py-24 bg-[#F9FAFB]">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="text-center mb-14">
-          <h2 className="font-montserrat text-3xl lg:text-4xl font-bold text-[#111111]">
-            {t(copy.testimonials.title, lang)}
-          </h2>
-        </div>
-        <div className="grid md:grid-cols-3 gap-6">
-          {copy.testimonials.items.map((item, i) => (
-            <div key={i} className="bg-white border border-[#E5E7EB] rounded-lg p-7 flex flex-col gap-5 shadow-sm">
-              <svg className="w-8 h-8 text-[#8B5CF6]/30" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
-              </svg>
-              <p className="font-roboto text-[#374151] text-sm leading-relaxed flex-1">{t(item.quote, lang)}</p>
-              <div className="flex items-center gap-3 pt-2 border-t border-[#F3F4F6]">
-                <div className="w-9 h-9 rounded-full bg-[#111111] flex items-center justify-center text-white font-bold text-sm shrink-0">
-                  {item.initials}
-                </div>
-                <div>
-                  <p className="font-montserrat font-semibold text-sm text-[#111111]">{item.name}</p>
-                  <p className="font-roboto text-xs text-[#6B7280]">{t(item.company, lang)}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ── FAQ ───────────────────────────────────────────────────────────────────────
 
 function FaqSection({ lang }: { lang: Lang }) {
@@ -931,7 +895,7 @@ export default function LandingPage() {
       <FeaturesSection lang={lang} />
       <HowItWorksSection lang={lang} />
       <PricingSection lang={lang} />
-      {/* <TestimonialsSection lang={lang} /> */}
+
       <FaqSection lang={lang} />
       <ContactSection lang={lang} />
       <Footer lang={lang} setLang={handleSetLang} />

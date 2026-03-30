@@ -101,7 +101,6 @@ export default function CompanySettingsForm({
     // Append a version timestamp so browsers always fetch the new image
     // instead of serving the cached version of the same filename.
     const url = `${data.publicUrl}?v=${Date.now()}`;
-    console.log("[CompanySettings] logo uploaded, public URL:", url);
     return url;
   }
 

@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { extractRoleName } from "@/types/database";
 
 async function assertSystemAdmin() {
   const supabase = createClient();
@@ -18,8 +19,7 @@ async function assertSystemAdmin() {
 
   const isAdmin = (data ?? []).some(
     (r) =>
-      ((r as unknown as { roles: { name: string } }).roles?.name) ===
-      "system_admin"
+      extractRoleName(r) === "system_admin"
   );
   if (!isAdmin) throw new Error("Forbidden");
 }

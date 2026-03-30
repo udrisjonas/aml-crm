@@ -14,8 +14,8 @@ export default async function BillingPage() {
     { data: settings },
     { data: { user } },
   ] = await Promise.all([
-    admin.from("plans").select("*").eq("is_active", true).order("monthly_fee"),
-    admin.from("tenant_subscriptions").select("*").eq("tenant_id", "default").maybeSingle(),
+    admin.from("plans").select("id, name, monthly_fee, included_clients, is_active").eq("is_active", true).order("monthly_fee"),
+    admin.from("tenant_subscriptions").select("id, tenant_id, plan_id, status, trial_start, trial_end, current_period_start, current_period_end, stripe_customer_id, stripe_subscription_id, created_at").eq("tenant_id", "default").maybeSingle(),
     admin.from("company_settings").select("vat_number, vat_country, country").eq("tenant_id", "default").maybeSingle(),
     supabase.auth.getUser(),
   ]);

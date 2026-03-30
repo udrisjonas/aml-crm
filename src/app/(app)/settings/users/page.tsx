@@ -36,21 +36,6 @@ export default async function UsersPage() {
       .order("created_at", { ascending: false }),
   ]);
 
-  // ── Diagnostic logging — remove once data is confirmed working ─────────────
-  console.log("[UsersPage] profiles query →", {
-    rows:  users?.length ?? 0,
-    error: usersError?.message ?? null,
-    sample: users?.[0] ?? null,
-  });
-  console.log("[UsersPage] roles query →", {
-    rows:  roles?.length ?? 0,
-    error: rolesError?.message ?? null,
-  });
-  console.log("[UsersPage] pending_invites query →", {
-    rows:  pendingInvites?.length ?? 0,
-    error: pendingError?.message ?? null,
-  });
-  // ── End diagnostic logging ─────────────────────────────────────────────────
 
   return (
     <div className="p-8">

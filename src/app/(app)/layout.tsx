@@ -7,6 +7,7 @@ import Sidebar from "@/components/Sidebar";
 import TrialBanner from "@/components/TrialBanner";
 import TrialExpiredScreen from "@/components/TrialExpiredScreen";
 import type { RoleName } from "@/types/roles";
+import { extractRoleName } from "@/types/database";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
@@ -32,7 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .eq("user_id", user.id);
 
     roles = (data ?? [])
-      .map((r) => ((r as unknown as { roles: { name: RoleName } }).roles?.name))
+      .map((r) => extractRoleName(r) as RoleName | "")
       .filter((n): n is RoleName => !!n);
   }
 
@@ -86,7 +87,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Load plans for the lockout screen
   const { data: plans } = isLocked && !isBillingPage
-    ? await admin.from("plans").select("*").eq("is_active", true).order("monthly_fee")
+    ? await admin.from("plans").select("id, name, monthly_fee, included_clients, is_active").eq("is_active", true).order("monthly_fee")
     : { data: [] };
 
   return (
