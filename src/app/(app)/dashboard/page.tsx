@@ -412,11 +412,13 @@ export default async function DashboardPage() {
   // Activity feed — resolve actor and client names
   const actorIds = Array.from(new Set(
     (recentChanges ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((c) => (c as any).changed_by)
       .filter(Boolean) as string[]
   ));
 
   const activityClientIds = Array.from(new Set(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (recentChanges ?? []).map((c) => (c as any).client_id)
   ));
 
