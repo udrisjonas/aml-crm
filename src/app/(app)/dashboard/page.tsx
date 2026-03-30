@@ -412,12 +412,12 @@ export default async function DashboardPage() {
   // Activity feed — resolve actor and client names
   const actorIds = Array.from(new Set(
     (recentChanges ?? [])
-      .map((c) => c.changed_by)
+      .map((c) => (c as any).changed_by)
       .filter(Boolean) as string[]
   ));
 
   const activityClientIds = Array.from(new Set(
-    (recentChanges ?? []).map((c) => c.client_id)
+    (recentChanges ?? []).map((c) => (c as any).client_id)
   ));
 
   const [{ data: actorProfiles }, { data: activityClients }] =
