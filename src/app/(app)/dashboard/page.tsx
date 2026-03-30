@@ -26,10 +26,12 @@ interface NotifItem {
   type: string;
   referenceId: string;
   clientId?: string;
+  href?: string;
   title: string;
   subtitle?: string;
   priority: "red" | "amber" | "blue";
   createdAt: string;
+  nonDismissible?: boolean;
 }
 
 function extractClientName(details: unknown): string {
@@ -135,6 +137,8 @@ export default async function DashboardPage() {
     { data: overdueReviews },
     { data: dismissed },
     { data: recentChanges },
+    { data: overdueComplianceDocs },
+    { data: activeResponsiblePersons },
   ] = await Promise.all([
     // Stats
     admin
@@ -219,6 +223,25 @@ export default async function DashboardPage() {
       .from("notification_dismissals")
       .select("notification_type, reference_id")
       .eq("user_id", user.id),
+
+    // Overdue compliance documents
+    admin
+      .from("compliance_documents")
+      .select("id, document_type, title, next_review_date")
+      .eq("tenant_id", "default")
+      .eq("status", "active")
+      .not("next_review_date", "is", null)
+      .lt("next_review_date", now.toISOString().slice(0, 10))
+      .order("next_review_date", { ascending: true })
+      .limit(20),
+
+    // Active responsible persons
+    admin
+      .from("responsible_persons")
+      .select("id")
+      .eq("tenant_id", "default")
+      .eq("status", "active")
+      .limit(1),
 
     // Activity feed
     admin
@@ -333,6 +356,38 @@ export default async function DashboardPage() {
         subtitle: `Due ${new Date(r.next_review_due).toLocaleDateString("en-GB")}`,
         priority: "red",
         createdAt: r.next_review_due,
+      });
+    }
+  }
+
+  // No responsible person (non-dismissible)
+  if ((activeResponsiblePersons ?? []).length === 0) {
+    rawNotifs.push({
+      key: "NO_RESPONSIBLE_PERSON::default",
+      type: "NO_RESPONSIBLE_PERSON",
+      referenceId: "default",
+      href: "/documents/aml?tab=responsible",
+      title: "No responsible person appointed",
+      subtitle: "An AML responsible person must be appointed immediately",
+      priority: "red",
+      createdAt: now.toISOString(),
+      nonDismissible: true,
+    });
+  }
+
+  // Overdue compliance documents
+  for (const doc of overdueComplianceDocs ?? []) {
+    const key = `COMPLIANCE_DOC_OVERDUE::${doc.id}`;
+    if (!dismissedSet.has(key)) {
+      rawNotifs.push({
+        key,
+        type: "COMPLIANCE_DOC_OVERDUE",
+        referenceId: doc.id,
+        href: "/documents/aml",
+        title: "Compliance document review overdue",
+        subtitle: (doc as { title: string }).title,
+        priority: "amber",
+        createdAt: (doc as { next_review_date: string }).next_review_date,
       });
     }
   }
@@ -498,18 +553,20 @@ export default async function DashboardPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {n.clientId && (
+                      {(n.href || n.clientId) && (
                         <Link
-                          href={`/clients/${n.clientId}`}
+                          href={n.href ?? `/clients/${n.clientId}`}
                           className="text-xs text-blue-600 hover:underline"
                         >
                           View
                         </Link>
                       )}
-                      <DismissButton
-                        notificationType={n.type}
-                        referenceId={n.referenceId}
-                      />
+                      {!n.nonDismissible && (
+                        <DismissButton
+                          notificationType={n.type}
+                          referenceId={n.referenceId}
+                        />
+                      )}
                     </div>
                   </li>
                 ))}
