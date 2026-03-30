@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useRef, useEffect } from "react";
+import { useState, useTransition, useRef, useEffect, memo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -657,6 +657,39 @@ function OverviewTab({ client }: { client: ClientData }) {
 // KYC Details tab
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Extracted outside KycDetailsTab so React sees a stable component identity
+// across re-renders — prevents focus loss on every keystroke.
+const KycField = memo(function KycField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  isEditing,
+}: {
+  label: string;
+  value: string;
+  onChange: React.ChangeEventHandler<HTMLInputElement>;
+  type?: string;
+  isEditing: boolean;
+}) {
+  if (!isEditing) {
+    return (
+      <div className="flex justify-between py-2.5 border-b border-slate-100 last:border-0 gap-4">
+        <span className="text-sm text-slate-500 shrink-0">{label}</span>
+        <span className="text-sm text-slate-800 text-right">
+          {value || <span className="text-slate-400">—</span>}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="py-2">
+      <label className="block text-xs text-slate-500 mb-1">{label}</label>
+      <input type={type} className={inputCls} value={value} onChange={onChange} />
+    </div>
+  );
+});
+
 function KycDetailsTab({
   client,
   purposeOptions,
@@ -731,7 +764,7 @@ function KycDetailsTab({
   function txt(k: keyof IndividualDetailsUpdate) {
     return {
       value: (form[k] as string) ?? "",
-      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
         setF(k, e.target.value as never),
     };
   }
@@ -761,29 +794,6 @@ function KycDetailsTab({
       if (res?.error) setError(res.error);
       else { setShowVerifyConfirm(false); router.refresh(); }
     });
-  }
-
-  // Helper: read or edit field
-  function Field({ label, field, type = "text" }: {
-    label: string;
-    field: keyof IndividualDetailsUpdate;
-    type?: string;
-  }) {
-    const val = form[field] as string | null | undefined;
-    if (!isEditing) {
-      return (
-        <div className="flex justify-between py-2.5 border-b border-slate-100 last:border-0 gap-4">
-          <span className="text-sm text-slate-500 shrink-0">{label}</span>
-          <span className="text-sm text-slate-800 text-right">{val || <span className="text-slate-400">—</span>}</span>
-        </div>
-      );
-    }
-    return (
-      <div className="py-2">
-        <label className="block text-xs text-slate-500 mb-1">{label}</label>
-        <input type={type} className={inputCls} {...txt(field)} />
-      </div>
-    );
   }
 
   return (
@@ -828,8 +838,8 @@ function KycDetailsTab({
             <h3 className="text-sm font-semibold text-slate-700">Personal details</h3>
           </div>
           <div className="px-5 py-1">
-            <Field label="First name" field="first_name" />
-            <Field label="Last name" field="last_name" />
+            <KycField label="First name" isEditing={isEditing} {...txt("first_name")} />
+            <KycField label="Last name" isEditing={isEditing} {...txt("last_name")} />
             {isEditing && (
               <div className="py-2">
                 <label className="text-xs text-slate-500 mb-1 block">Resident type</label>
@@ -849,18 +859,18 @@ function KycDetailsTab({
               </div>
             )}
             {form.is_lithuanian_resident
-              ? <Field label="Personal ID number" field="personal_id_number" />
+              ? <KycField label="Personal ID number" isEditing={isEditing} {...txt("personal_id_number")} />
               : <>
-                  <Field label="Date of birth" field="date_of_birth" type="date" />
-                  <Field label="Foreign ID number" field="foreign_id_number" />
+                  <KycField label="Date of birth" type="date" isEditing={isEditing} {...txt("date_of_birth")} />
+                  <KycField label="Foreign ID number" isEditing={isEditing} {...txt("foreign_id_number")} />
                 </>
             }
-            <Field label="Nationality" field="nationality" />
-            <Field label="Country of residence" field="country_of_residence" />
-            <Field label="Residential address" field="residential_address" />
-            <Field label="Correspondence address" field="correspondence_address" />
-            <Field label="Phone" field="phone" />
-            <Field label="Email" field="email" type="email" />
+            <KycField label="Nationality" isEditing={isEditing} {...txt("nationality")} />
+            <KycField label="Country of residence" isEditing={isEditing} {...txt("country_of_residence")} />
+            <KycField label="Residential address" isEditing={isEditing} {...txt("residential_address")} />
+            <KycField label="Correspondence address" isEditing={isEditing} {...txt("correspondence_address")} />
+            <KycField label="Phone" isEditing={isEditing} {...txt("phone")} />
+            <KycField label="Email" type="email" isEditing={isEditing} {...txt("email")} />
           </div>
         </div>
 
@@ -887,10 +897,10 @@ function KycDetailsTab({
                 <span className="text-sm text-slate-800">{form.id_document_type ? DOC_TYPE_LABELS[form.id_document_type] ?? form.id_document_type : "—"}</span>
               </div>
             )}
-            <Field label="Document number" field="id_document_number" />
-            <Field label="Issue date" field="id_issue_date" type="date" />
-            <Field label="Expiry date" field="id_document_expiry" type="date" />
-            <Field label="Issuing country" field="id_issuing_country" />
+            <KycField label="Document number" isEditing={isEditing} {...txt("id_document_number")} />
+            <KycField label="Issue date" type="date" isEditing={isEditing} {...txt("id_issue_date")} />
+            <KycField label="Expiry date" type="date" isEditing={isEditing} {...txt("id_document_expiry")} />
+            <KycField label="Issuing country" isEditing={isEditing} {...txt("id_issuing_country")} />
           </div>
         </div>
 
@@ -900,9 +910,9 @@ function KycDetailsTab({
             <h3 className="text-sm font-semibold text-slate-700">Source of funds & purpose</h3>
           </div>
           <div className="px-5 py-1">
-            <Field label="Occupation" field="occupation" />
-            <Field label="Source of funds" field="source_of_funds" />
-            <Field label="Source of wealth" field="source_of_wealth" />
+            <KycField label="Occupation" isEditing={isEditing} {...txt("occupation")} />
+            <KycField label="Source of funds" isEditing={isEditing} {...txt("source_of_funds")} />
+            <KycField label="Source of wealth" isEditing={isEditing} {...txt("source_of_wealth")} />
             {/* Purpose of relationship — dropdown from templates */}
             {isEditing ? (
               <div className="py-2">
@@ -969,8 +979,8 @@ function KycDetailsTab({
                 </span>
               </div>
             ))}
-            <Field label="Acting on own behalf" field="acting_on_own_behalf" />
-            {!form.acting_on_own_behalf && <Field label="Beneficial owner info" field="beneficial_owner_info" />}
+            <KycField label="Acting on own behalf" isEditing={isEditing} {...txt("acting_on_own_behalf")} />
+            {!form.acting_on_own_behalf && <KycField label="Beneficial owner info" isEditing={isEditing} {...txt("beneficial_owner_info")} />}
           </div>
         </div>
 
@@ -997,8 +1007,8 @@ function KycDetailsTab({
                 </Badge>
               </div>
             )}
-            <Field label="Self-declared" field="pep_self_declared" />
-            {(form.pep_status === "yes") && <Field label="PEP details" field="pep_details" />}
+            <KycField label="Self-declared" isEditing={isEditing} {...txt("pep_self_declared")} />
+            {(form.pep_status === "yes") && <KycField label="PEP details" isEditing={isEditing} {...txt("pep_details")} />}
           </div>
         </div>
 
