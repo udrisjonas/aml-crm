@@ -27,7 +27,10 @@
       "Bash(grep -n \"function\\\\|const.*=.*React\\\\|import\" /Users/jonasudris/projects/aml-crm/src/app/\\\\\\(app\\\\\\)/clients/[id]/ClientDetail.tsx)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(ls -la /Users/jonasudris/projects/aml-crm/src/app/\\\\\\(app\\\\\\)/documents/)",
+      "Bash(find /Users/jonasudris/projects/aml-crm/supabase/migrations -name *.sql)",
+      "Bash(npx eslint:*)"
     ]
   }
 }
