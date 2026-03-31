@@ -92,7 +92,7 @@ export default async function ClientsPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function applyFilters(q: any) {
     q = q.eq("tenant_id", "default");
-    if (isBroker) q = q.eq("assigned_broker_id", user.id);
+    if (isBroker && user) q = q.eq("assigned_broker_id", user.id);
     if (showArchived) {
       q = q.eq("client_status", "archived");
     } else {
