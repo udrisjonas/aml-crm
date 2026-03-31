@@ -154,17 +154,34 @@ export async function resendInviteEmailAction(inviteId: string): Promise<void> {
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-    // Use generateLink so it works for users already registered in Supabase Auth.
-    // inviteUserByEmail fails with "already registered" for existing users.
-    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
-      type: "invite",
-      email: invite.email,
-      options: {
-        data: { full_name: invite.full_name },
-        redirectTo: `${siteUrl}/auth/confirm`,
-      },
-    });
-    if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate invite link");
+    // Check if user already exists in Supabase Auth.
+    // generateLink with type="invite" also fails with "already registered".
+    const { data: { users: authUsers } } = await admin.auth.admin.listUsers();
+    const existingUser = authUsers.find((u) => u.email === invite.email);
+
+    let actionLink: string;
+    if (existingUser) {
+      // User already registered — generate a magic link to /set-password instead
+      const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+        type: "magiclink",
+        email: invite.email,
+        options: { redirectTo: `${siteUrl}/set-password` },
+      });
+      if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate link");
+      actionLink = linkData.properties.action_link;
+    } else {
+      // New user — use invite type
+      const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+        type: "invite",
+        email: invite.email,
+        options: {
+          data: { full_name: invite.full_name },
+          redirectTo: `${siteUrl}/auth/confirm`,
+        },
+      });
+      if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate invite link");
+      actionLink = linkData.properties.action_link;
+    }
 
     const { data: companySettings } = await admin
       .from("company_settings")
@@ -174,7 +191,7 @@ export async function resendInviteEmailAction(inviteId: string): Promise<void> {
     await sendInviteEmail({
       to: invite.email,
       inviteeName: invite.full_name,
-      inviteUrl: linkData.properties.action_link,
+      inviteUrl: actionLink,
       companyName: companySettings?.company_name ?? "AML Compliance",
     });
 
@@ -208,12 +225,31 @@ export async function resendInviteLinkAction(inviteId: string): Promise<string> 
     if (fetchError || !invite) throw new Error("Invite not found");
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-    const { data, error: linkError } = await admin.auth.admin.generateLink({
-      type: "invite",
-      email: invite.email,
-      options: { data: { full_name: invite.full_name }, redirectTo: `${siteUrl}/auth/confirm` },
-    });
-    if (linkError) throw new Error(linkError.message);
+
+    // Check if user already exists in Supabase Auth.
+    const { data: { users: authUsers } } = await admin.auth.admin.listUsers();
+    const existingUser = authUsers.find((u) => u.email === invite.email);
+
+    let actionLink: string;
+    if (existingUser) {
+      // User already registered — generate a magic link to /set-password instead
+      const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+        type: "magiclink",
+        email: invite.email,
+        options: { redirectTo: `${siteUrl}/set-password` },
+      });
+      if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate link");
+      actionLink = linkData.properties.action_link;
+    } else {
+      // New user — use invite type
+      const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+        type: "invite",
+        email: invite.email,
+        options: { data: { full_name: invite.full_name }, redirectTo: `${siteUrl}/auth/confirm` },
+      });
+      if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate invite link");
+      actionLink = linkData.properties.action_link;
+    }
 
     // last_sent_at may not exist in all environments — non-fatal if it fails
     try {
@@ -226,7 +262,7 @@ export async function resendInviteLinkAction(inviteId: string): Promise<string> 
     }
 
     revalidatePath("/settings/users");
-    return data.properties.action_link;
+    return actionLink;
   } catch (err) {
     console.error("[resendInviteLinkAction]", err);
     throw err;
