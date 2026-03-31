@@ -161,16 +161,18 @@ export async function resendInviteEmailAction(inviteId: string): Promise<void> {
 
     let actionLink: string;
     if (existingUser) {
-      // User already registered — generate a magic link and construct the callback URL
-      // using hashed_token directly (same format as Supabase email templates).
-      // Using action_link would go through Supabase's verify endpoint which redirects
-      // with a hash fragment (#access_token=…), invisible to the server-side /auth/confirm route.
+      // User already registered — use a recovery link so the invitee can set their password.
+      // generateLink({type:"recovery"}) returns hashed_token which works reliably with
+      // verifyOtp({token_hash, type:"recovery"}) in the SSR callback route.
+      // Magic-link type produces a session via the implicit flow (hash fragment) which the
+      // server-side /auth/confirm route cannot read, so verifyOtp for magiclink silently
+      // returns no session. Recovery is the explicitly documented SSR token_hash flow.
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
-        type: "magiclink",
+        type: "recovery",
         email: invite.email,
       });
       if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate link");
-      actionLink = `${siteUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=magiclink`;
+      actionLink = `${siteUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=recovery`;
     } else {
       // New user — use invite type
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
@@ -234,16 +236,14 @@ export async function resendInviteLinkAction(inviteId: string): Promise<string> 
 
     let actionLink: string;
     if (existingUser) {
-      // User already registered — generate a magic link and construct the callback URL
-      // using hashed_token directly (same format as Supabase email templates).
-      // Using action_link would go through Supabase's verify endpoint which redirects
-      // with a hash fragment (#access_token=…), invisible to the server-side /auth/confirm route.
+      // User already registered — use a recovery link so the invitee can set their password.
+      // See resendInviteEmailAction for full explanation.
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
-        type: "magiclink",
+        type: "recovery",
         email: invite.email,
       });
       if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate link");
-      actionLink = `${siteUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=magiclink`;
+      actionLink = `${siteUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=recovery`;
     } else {
       // New user — use invite type
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({

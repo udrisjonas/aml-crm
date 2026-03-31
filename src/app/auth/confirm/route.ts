@@ -49,9 +49,15 @@ export async function GET(request: NextRequest) {
 
   // ── Email OTP flow ────────────────────────────────────────────────────────
   if (token_hash && type) {
-    const { error } = await supabase.auth.verifyOtp({ token_hash, type });
+    const { data, error } = await supabase.auth.verifyOtp({ token_hash, type });
     if (error) {
       console.error("[/auth/confirm] verifyOtp failed:", error.message);
+      return NextResponse.redirect(errorUrl);
+    }
+    if (!data.session) {
+      // verifyOtp returned no error but also no session — token type incompatible
+      // with server-side OTP verification (e.g. magiclink uses implicit/hash flow).
+      console.error("[/auth/confirm] verifyOtp succeeded but returned no session. type:", type);
       return NextResponse.redirect(errorUrl);
     }
     return successResponse;
