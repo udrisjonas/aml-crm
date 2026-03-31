@@ -14,24 +14,29 @@ export default async function UsersPage() {
   // Admin client bypasses RLS — required to read all profiles/invites on this page.
   const admin = createAdminClient();
 
-  const [
-    { data: users },
-    { data: roles },
-  ] = await Promise.all([
-    admin
+  // Each query is isolated so a single failing column/relation doesn't crash the page.
+  let users: Parameters<typeof UsersManager>[0]["initialUsers"] = [];
+  try {
+    const { data, error } = await admin
       .from("profiles")
       .select("*, user_roles!user_id(id, assigned_at, roles(id, name, description))")
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false });
+    if (error) console.error("[UsersPage] profiles query error:", error.message);
+    else if (data) users = data as typeof users;
+  } catch (err) {
+    console.error("[UsersPage] profiles query threw:", err);
+  }
 
-    admin
-      .from("roles")
-      .select("*")
-      .order("name"),
-  ]);
+  let roles: Role[] = [];
+  try {
+    const { data, error } = await admin.from("roles").select("*").order("name");
+    if (error) console.error("[UsersPage] roles query error:", error.message);
+    else if (data) roles = data as Role[];
+  } catch (err) {
+    console.error("[UsersPage] roles query threw:", err);
+  }
 
-  // Fetch pending invites separately — last_sent_at may be missing in some
-  // environments if migration 003 was not applied. Fall back to empty array
-  // rather than crashing the whole page.
+  // pending_invites: last_sent_at may be missing if migration 003 was not applied.
   let pendingInvites: { id: string; email: string; full_name: string; roles: string[]; created_at: string }[] = [];
   try {
     const { data, error } = await admin
@@ -39,9 +44,10 @@ export default async function UsersPage() {
       .select("id, email, full_name, roles, created_at")
       .is("accepted_at", null)
       .order("created_at", { ascending: false });
-    if (!error && data) pendingInvites = data;
-  } catch {
-    // non-fatal: render page without pending invites
+    if (error) console.error("[UsersPage] pending_invites query error:", error.message);
+    else if (data) pendingInvites = data;
+  } catch (err) {
+    console.error("[UsersPage] pending_invites query threw:", err);
   }
 
 
@@ -54,14 +60,10 @@ export default async function UsersPage() {
         </p>
       </div>
       <UsersManager
-        initialUsers={
-          (users ?? []) as Parameters<typeof UsersManager>[0]["initialUsers"]
-        }
-        allRoles={(roles ?? []) as Role[]}
+        initialUsers={users}
+        allRoles={roles}
         initialPendingInvites={
-          pendingInvites as Parameters<
-            typeof UsersManager
-          >[0]["initialPendingInvites"]
+          pendingInvites as Parameters<typeof UsersManager>[0]["initialPendingInvites"]
         }
       />
     </div>
