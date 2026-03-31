@@ -161,15 +161,16 @@ export async function resendInviteEmailAction(inviteId: string): Promise<void> {
 
     let actionLink: string;
     if (existingUser) {
-      // User already registered — generate a magic link through /auth/confirm so
-      // the code exchange happens server-side and the correct session is established.
+      // User already registered — generate a magic link and construct the callback URL
+      // using hashed_token directly (same format as Supabase email templates).
+      // Using action_link would go through Supabase's verify endpoint which redirects
+      // with a hash fragment (#access_token=…), invisible to the server-side /auth/confirm route.
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
         type: "magiclink",
         email: invite.email,
-        options: { redirectTo: `${siteUrl}/auth/confirm` },
       });
       if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate link");
-      actionLink = linkData.properties.action_link;
+      actionLink = `${siteUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=magiclink`;
     } else {
       // New user — use invite type
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
@@ -233,15 +234,16 @@ export async function resendInviteLinkAction(inviteId: string): Promise<string> 
 
     let actionLink: string;
     if (existingUser) {
-      // User already registered — route through /auth/confirm so the code exchange
-      // happens server-side and the correct session is established before /set-password.
+      // User already registered — generate a magic link and construct the callback URL
+      // using hashed_token directly (same format as Supabase email templates).
+      // Using action_link would go through Supabase's verify endpoint which redirects
+      // with a hash fragment (#access_token=…), invisible to the server-side /auth/confirm route.
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
         type: "magiclink",
         email: invite.email,
-        options: { redirectTo: `${siteUrl}/auth/confirm` },
       });
       if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate link");
-      actionLink = linkData.properties.action_link;
+      actionLink = `${siteUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=magiclink`;
     } else {
       // New user — use invite type
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
