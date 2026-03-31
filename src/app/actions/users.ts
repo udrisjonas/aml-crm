@@ -161,11 +161,12 @@ export async function resendInviteEmailAction(inviteId: string): Promise<void> {
 
     let actionLink: string;
     if (existingUser) {
-      // User already registered — generate a magic link to /set-password instead
+      // User already registered — generate a magic link through /auth/confirm so
+      // the code exchange happens server-side and the correct session is established.
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
         type: "magiclink",
         email: invite.email,
-        options: { redirectTo: `${siteUrl}/set-password` },
+        options: { redirectTo: `${siteUrl}/auth/confirm` },
       });
       if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate link");
       actionLink = linkData.properties.action_link;
@@ -232,11 +233,12 @@ export async function resendInviteLinkAction(inviteId: string): Promise<string> 
 
     let actionLink: string;
     if (existingUser) {
-      // User already registered — generate a magic link to /set-password instead
+      // User already registered — route through /auth/confirm so the code exchange
+      // happens server-side and the correct session is established before /set-password.
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
         type: "magiclink",
         email: invite.email,
-        options: { redirectTo: `${siteUrl}/set-password` },
+        options: { redirectTo: `${siteUrl}/auth/confirm` },
       });
       if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate link");
       actionLink = linkData.properties.action_link;
