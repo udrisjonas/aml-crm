@@ -279,6 +279,81 @@ function buildEnEddHtml(opts: EddEmailOptions): string {
 </html>`;
 }
 
+// ── Invite email ──────────────────────────────────────────────────────────────
+
+export interface InviteEmailOptions {
+  to: string;
+  inviteeName: string;
+  inviteUrl: string;
+  companyName: string;
+}
+
+export async function sendInviteEmail(opts: InviteEmailOptions): Promise<void> {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+    throw new Error("SMTP not configured");
+  }
+  const transporter = createTransport();
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">
+        <tr>
+          <td style="background:#0f172a;padding:32px 40px;">
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${opts.companyName}</h1>
+            <p style="margin:6px 0 0;color:#94a3b8;font-size:14px;">AML Compliance Platform</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px;">
+            <p style="margin:0 0 16px;font-size:16px;color:#1e293b;">Hello <strong>${opts.inviteeName}</strong>,</p>
+            <p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6;">
+              You have been invited to join <strong>${opts.companyName}</strong>'s AML compliance platform.
+              Click the button below to set your password and activate your account.
+            </p>
+            <table cellpadding="0" cellspacing="0" style="margin:28px 0;">
+              <tr>
+                <td style="background:#0f172a;border-radius:8px;">
+                  <a href="${opts.inviteUrl}" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">
+                    Accept invitation →
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0 0 8px;font-size:13px;color:#94a3b8;">
+              If the button above does not work, copy this link into your browser:
+            </p>
+            <p style="margin:0 0 24px;font-size:12px;color:#3b82f6;word-break:break-all;">${opts.inviteUrl}</p>
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
+            <p style="margin:0;font-size:13px;color:#94a3b8;line-height:1.5;">
+              This email was sent automatically. Please do not reply.<br>
+              If you were not expecting this invitation, you can ignore this email.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;">
+            <p style="margin:0;font-size:12px;color:#94a3b8;">
+              © ${new Date().getFullYear()} ${opts.companyName}. All rights reserved.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: opts.to,
+    subject: `You've been invited to ${opts.companyName}`,
+    html,
+  });
+}
+
 export async function sendEddEmail(opts: EddEmailOptions): Promise<void> {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
     throw new Error("SMTP not configured");

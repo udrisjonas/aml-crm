@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { RoleName } from "@/types/roles";
 import { extractRoleName } from "@/types/database";
+import { sendInviteEmail } from "@/lib/email";
 
 async function assertSystemAdmin() {
   const supabase = createClient();
@@ -152,11 +153,30 @@ export async function resendInviteEmailAction(inviteId: string): Promise<void> {
     if (fetchError || !invite) throw new Error("Invite not found");
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-    const { error: sendError } = await admin.auth.admin.inviteUserByEmail(invite.email, {
-      redirectTo: `${siteUrl}/auth/confirm`,
-      data: { full_name: invite.full_name },
+
+    // Use generateLink so it works for users already registered in Supabase Auth.
+    // inviteUserByEmail fails with "already registered" for existing users.
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+      type: "invite",
+      email: invite.email,
+      options: {
+        data: { full_name: invite.full_name },
+        redirectTo: `${siteUrl}/auth/confirm`,
+      },
     });
-    if (sendError) throw new Error(sendError.message);
+    if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate invite link");
+
+    const { data: companySettings } = await admin
+      .from("company_settings")
+      .select("company_name")
+      .single();
+
+    await sendInviteEmail({
+      to: invite.email,
+      inviteeName: invite.full_name,
+      inviteUrl: linkData.properties.action_link,
+      companyName: companySettings?.company_name ?? "AML Compliance",
+    });
 
     // last_sent_at may not exist in all environments — non-fatal if it fails
     try {
