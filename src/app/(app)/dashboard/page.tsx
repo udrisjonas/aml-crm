@@ -525,13 +525,13 @@ export default async function DashboardPage() {
 
   // Pending document acknowledgments — one notification per document
   const ackedDocIds = new Set((userAcknowledgments ?? []).map((a: { document_id: string }) => a.document_id));
-  for (const req of (ackRequirements ?? []) as Array<{ id: string; document_id: string; required_roles: string[]; specific_user_ids: string[]; compliance_documents: { id: string; title: string; status: string } | null }>) {
+  for (const req of (ackRequirements ?? []) as Array<{ id: string; document_id: string; required_roles: string[]; specific_user_ids: string[]; compliance_documents: { id: string; title: string; status: string }[] }>) {
     if (ackedDocIds.has(req.document_id)) continue;
     const requiresUser =
       req.required_roles.some((r: string) => roleNames.includes(r)) ||
       req.specific_user_ids.includes(user.id);
     if (!requiresUser) continue;
-    const docTitle = req.compliance_documents?.title ?? "Compliance document";
+    const docTitle = req.compliance_documents[0]?.title ?? "Compliance document";
     const key = `PENDING_ACK_DOC::${req.document_id}`;
     if (!dismissedSet.has(key)) {
       rawNotifs.push({
