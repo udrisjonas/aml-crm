@@ -8,14 +8,15 @@ import { createClient } from "@/lib/supabase/client";
 interface Props {
   logoUrl: string | null;
   companyName: string | null;
+  initialError?: string;
 }
 
-export default function LoginForm({ logoUrl, companyName }: Props) {
+export default function LoginForm({ logoUrl, companyName, initialError }: Props) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError ?? "");
   const [logoError, setLogoError] = useState(false);
 
   useEffect(() => { setLogoError(false); }, [logoUrl]);

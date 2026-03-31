@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { completeInviteAction } from "@/app/actions/invite";
 import type { RoleName } from "@/types/roles";
 
@@ -23,14 +24,17 @@ interface Props {
   email: string;
   fullName: string;
   roles: RoleName[];
+  logoUrl: string | null;
+  companyName: string | null;
 }
 
-export default function SetPasswordForm({ email, fullName, roles }: Props) {
+export default function SetPasswordForm({ email, fullName, roles, logoUrl, companyName }: Props) {
   const router = useRouter();
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("")
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [logoError, setLogoError] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,21 +62,45 @@ export default function SetPasswordForm({ email, fullName, roles }: Props) {
 
   return (
     <div className="w-full max-w-md">
-      {/* Brand */}
+      {/* Logo / Brand — matches login page exactly */}
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-xl mb-4">
-          <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-            />
-          </svg>
-        </div>
-        <h1 className="text-2xl font-bold text-slate-900">Welcome to AML CRM</h1>
-        <p className="text-slate-500 text-sm mt-1">Set your password to activate your account</p>
+        {logoUrl && !logoError ? (
+          <Image
+            src={logoUrl}
+            alt={companyName ?? "Logo"}
+            width={160}
+            height={96}
+            className="w-2/5 max-h-24 block mx-auto mb-4 object-contain"
+            onError={() => setLogoError(true)}
+            unoptimized
+          />
+        ) : (
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 bg-blue-600">
+            <svg
+              className="w-9 h-9 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+              />
+            </svg>
+          </div>
+        )}
+        <h1 className="text-2xl font-bold text-slate-900">
+          {companyName || "AML CRM"}
+        </h1>
+        <p className="text-slate-500 text-sm mt-1">
+          Set your password to activate your account
+        </p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-        {/* Invite summary */}
+        {/* Account summary */}
         <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
           {fullName && (
             <div className="flex items-center justify-between">

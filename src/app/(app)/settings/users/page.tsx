@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import UsersManager from "./UsersManager";
 import type { Role } from "@/types/roles";
 
+export const dynamic = "force-dynamic";
+
 function serializeError(err: unknown): string {
   try {
     return JSON.stringify(err, Object.getOwnPropertyNames(err instanceof Error ? err : Object(err)));

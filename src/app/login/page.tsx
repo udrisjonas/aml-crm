@@ -5,7 +5,11 @@ import LoginForm from "./LoginForm";
 // must reflect the latest company_settings on every request.
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: { error?: string };
+}) {
   const admin = createAdminClient();
 
   const { data: settings } = await admin
@@ -18,6 +22,7 @@ export default async function LoginPage() {
     <LoginForm
       logoUrl={settings?.logo_url ?? null}
       companyName={settings?.company_name ?? null}
+      initialError={searchParams.error ? decodeURIComponent(searchParams.error) : undefined}
     />
   );
 }
