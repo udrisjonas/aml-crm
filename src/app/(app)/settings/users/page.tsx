@@ -17,7 +17,6 @@ export default async function UsersPage() {
   const [
     { data: users },
     { data: roles },
-    { data: pendingInvites },
   ] = await Promise.all([
     admin
       .from("profiles")
@@ -28,13 +27,22 @@ export default async function UsersPage() {
       .from("roles")
       .select("*")
       .order("name"),
-
-    admin
-      .from("pending_invites")
-      .select("id, email, full_name, roles, created_at, last_sent_at")
-      .is("accepted_at", null)
-      .order("created_at", { ascending: false }),
   ]);
+
+  // Fetch pending invites separately — last_sent_at may be missing in some
+  // environments if migration 003 was not applied. Fall back to empty array
+  // rather than crashing the whole page.
+  let pendingInvites: { id: string; email: string; full_name: string; roles: string[]; created_at: string }[] = [];
+  try {
+    const { data, error } = await admin
+      .from("pending_invites")
+      .select("id, email, full_name, roles, created_at")
+      .is("accepted_at", null)
+      .order("created_at", { ascending: false });
+    if (!error && data) pendingInvites = data;
+  } catch {
+    // non-fatal: render page without pending invites
+  }
 
 
   return (
@@ -51,7 +59,7 @@ export default async function UsersPage() {
         }
         allRoles={(roles ?? []) as Role[]}
         initialPendingInvites={
-          (pendingInvites ?? []) as Parameters<
+          pendingInvites as Parameters<
             typeof UsersManager
           >[0]["initialPendingInvites"]
         }
