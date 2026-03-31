@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useRef } from "react";
 import Link from "next/link";
 import { submitContactFormAction } from "@/app/actions/landing";
 
@@ -235,15 +235,39 @@ function Logo() {
 
 // ── Navbar ────────────────────────────────────────────────────────────────────
 
+const LANG_LABELS: Record<Lang, string> = { lt: "Lietuvių", en: "English" };
+const LANG_FLAGS:  Record<Lang, string> = { lt: "🇱🇹",      en: "🇬🇧" };
+
+function GlobeIcon() {
+  return (
+    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="10" />
+      <path strokeLinecap="round" d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" />
+    </svg>
+  );
+}
+
 function Navbar({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onScroll() { setScrolled(window.scrollY > 20); }
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    if (dropdownOpen) document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [dropdownOpen]);
 
   function scrollTo(id: string) {
     setMenuOpen(false);
@@ -278,15 +302,31 @@ function Navbar({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
 
         {/* Right controls */}
         <div className="hidden md:flex items-center gap-3">
-          <div className="flex items-center rounded-md border border-[#E5E7EB] overflow-hidden text-xs font-semibold">
-            {(["lt", "en"] as Lang[]).map((l) => (
-              <button key={l} onClick={() => setLang(l)}
-                className={`font-roboto px-3 py-1.5 transition-colors uppercase ${
-                  lang === l ? "bg-[#111111] text-white" : "text-[#6B7280] hover:text-[#111111] hover:bg-[#F9FAFB]"
-                }`}>
-                {l}
-              </button>
-            ))}
+          {/* Language dropdown */}
+          <div ref={dropdownRef} className="relative">
+            <button
+              onClick={() => setDropdownOpen((o) => !o)}
+              className="font-roboto flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[#E5E7EB] bg-white text-sm text-[#374151] hover:bg-[#F9FAFB] transition-colors"
+            >
+              <GlobeIcon />
+              <span>{LANG_LABELS[lang]}</span>
+              <svg className={`w-3.5 h-3.5 text-[#9CA3AF] transition-transform ${dropdownOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {dropdownOpen && (
+              <div className="absolute right-0 mt-1.5 w-40 rounded-md border border-[#E5E7EB] bg-white shadow-md py-1 z-50">
+                {(["lt", "en"] as Lang[]).map((l) => (
+                  <button key={l} onClick={() => { setLang(l); setDropdownOpen(false); }}
+                    className={`font-roboto w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                      lang === l ? "bg-[#F3F4F6] text-[#111111] font-semibold" : "text-[#374151] hover:bg-[#F9FAFB]"
+                    }`}>
+                    <span>{LANG_FLAGS[l]}</span>
+                    <span>{LANG_LABELS[l]}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <Link href="/login"
             className="font-roboto px-4 py-2 bg-[#111111] hover:bg-[#374151] text-white text-sm font-semibold rounded-md shadow-sm transition-colors">
@@ -318,10 +358,11 @@ function Navbar({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
             <div className="flex rounded-md border border-[#E5E7EB] overflow-hidden text-xs font-semibold">
               {(["lt", "en"] as Lang[]).map((l) => (
                 <button key={l} onClick={() => setLang(l)}
-                  className={`font-roboto px-3 py-1.5 transition-colors uppercase ${
+                  className={`font-roboto flex items-center gap-1 px-3 py-1.5 transition-colors ${
                     lang === l ? "bg-[#111111] text-white" : "text-[#6B7280] hover:text-[#111111]"
                   }`}>
-                  {l}
+                  <span>{LANG_FLAGS[l]}</span>
+                  <span>{LANG_LABELS[l]}</span>
                 </button>
               ))}
             </div>

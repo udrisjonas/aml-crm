@@ -245,7 +245,10 @@ export async function setUserActiveAction(userId: string, isActive: boolean) {
 
   const { error } = await supabase
     .from("profiles")
-    .update({ is_active: isActive })
+    .update({
+      is_active:   isActive,
+      archived_at: isActive ? null : new Date().toISOString(),
+    })
     .eq("id", userId);
 
   if (error) throw new Error(error.message);

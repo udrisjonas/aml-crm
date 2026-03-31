@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createIndividualClientAction, type CreateIndividualClientData } from "@/app/actions/clients";
+import { checkArchiveMatchAction, reviveClientAction, type ArchiveMatch } from "@/app/actions/termination";
 import { validateLithuanianPersonalCode } from "@/lib/validation/lithuanianPersonalCode";
 import type { RelationshipOption } from "./page";
 
@@ -265,6 +267,7 @@ function StepIndividualForm({
   frequencyOptions: RelationshipOption[];
   useOptions: RelationshipOption[];
 }) {
+  const router = useRouter();
   const [form, setForm] = useState<CreateIndividualClientData>(defaultForm);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -272,6 +275,10 @@ function StepIndividualForm({
   const [personalCodeError, setPersonalCodeError] = useState("");
   const [issueDateError, setIssueDateError] = useState("");
   const [expiryDateError, setExpiryDateError] = useState("");
+  const [archiveMatch, setArchiveMatch] = useState<ArchiveMatch | null>(null);
+  const [checkingArchive, setCheckingArchive] = useState(false);
+  const [reviving, setReviving] = useState(false);
+  const [revivalMessage, setRevivalMessage] = useState("");
 
   function set<K extends keyof CreateIndividualClientData>(
     key: K,
@@ -319,6 +326,39 @@ function StepIndividualForm({
       return;
     }
     setExpiryDateError("");
+  }
+
+  async function triggerArchiveCheck(params: { email?: string; personalCode?: string; documentNumber?: string }) {
+    const hasValue = Object.values(params).some((v) => v?.trim());
+    if (!hasValue) return;
+    setCheckingArchive(true);
+    try {
+      const { match } = await checkArchiveMatchAction(params);
+      if (match) setArchiveMatch(match);
+    } finally {
+      setCheckingArchive(false);
+    }
+  }
+
+  async function handleRevive(match: ArchiveMatch) {
+    if (match.revival_requires_aml_review) {
+      setRevivalMessage("This client was terminated for AML reasons. Please contact your AML officer to revive this client.");
+      return;
+    }
+    setReviving(true);
+    try {
+      const res = await reviveClientAction({ archivedClientId: match.id });
+      if (!res.ok) { setError(res.error ?? "Failed to revive client"); return; }
+      if (res.requiresAmlOfficer) {
+        setRevivalMessage("This client was terminated for AML reasons. Please contact your AML officer to revive this client.");
+        return;
+      }
+      if (res.newClientId) {
+        router.push(`/clients/${res.newClientId}`);
+      }
+    } finally {
+      setReviving(false);
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -418,7 +458,10 @@ function StepIndividualForm({
                   {...bindText("personal_id_number")}
                   placeholder="38901011234"
                   maxLength={11}
-                  onBlur={handlePersonalCodeBlur}
+                  onBlur={(e) => {
+                    handlePersonalCodeBlur();
+                    triggerArchiveCheck({ personalCode: e.target.value });
+                  }}
                 />
                 {personalCodeValid === true && (
                   <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none">
@@ -513,7 +556,8 @@ function StepIndividualForm({
           <Row cols={3}>
             <Field label="Document number">
               <input type="text" className={inputCls} {...bindText("id_document_number")}
-                placeholder="AB123456" />
+                placeholder="AB123456"
+                onBlur={(e) => triggerArchiveCheck({ documentNumber: e.target.value })} />
             </Field>
             <Field label="Issue date">
               <input type="date"
@@ -546,7 +590,8 @@ function StepIndividualForm({
             </Field>
             <Field label="Email address">
               <input type="email" className={inputCls} {...bindText("email")}
-                placeholder="jonas@example.com" />
+                placeholder="jonas@example.com"
+                onBlur={(e) => triggerArchiveCheck({ email: e.target.value })} />
             </Field>
           </Row>
         </Section>
@@ -737,6 +782,74 @@ function StepIndividualForm({
             />
           </Field>
         </Section>
+
+        {/* ── Archive match banner ─────────────────────────────────────── */}
+        {checkingArchive && (
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 text-sm animate-pulse">
+            Checking archive…
+          </div>
+        )}
+
+        {revivalMessage && (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+            <p className="text-sm font-semibold text-amber-800">{revivalMessage}</p>
+            <button
+              type="button"
+              onClick={() => setRevivalMessage("")}
+              className="text-xs text-amber-600 underline underline-offset-2"
+            >
+              Dismiss — continue creating new client
+            </button>
+          </div>
+        )}
+
+        {archiveMatch && !revivalMessage && (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">
+                  A match was found in the archive with this data.
+                </p>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  Rastas archyve esantis klientas su šiais duomenimis.
+                </p>
+                <div className="mt-2 text-sm text-amber-700 space-y-0.5">
+                  <p className="font-medium">{archiveMatch.first_name} {archiveMatch.last_name}</p>
+                  {archiveMatch.archived_at && (
+                    <p className="text-xs">Archived: {new Date(archiveMatch.archived_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+                  )}
+                  {archiveMatch.termination_reason && (
+                    <p className="text-xs">Reason: {archiveMatch.termination_reason.replace(/_/g, " ")}</p>
+                  )}
+                  {archiveMatch.revival_requires_aml_review && (
+                    <p className="text-xs font-semibold text-red-700">Revival requires AML officer review</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => handleRevive(archiveMatch)}
+                disabled={reviving}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white text-sm font-medium rounded-lg transition"
+              >
+                {reviving ? "Processing…" : "Atgaivinti šį klientą / Revive this client"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setArchiveMatch(null)}
+                className="px-3 py-1.5 border border-amber-300 text-amber-700 hover:bg-amber-100 text-sm font-medium rounded-lg transition"
+              >
+                Skirtingas asmuo / Different person (continue creating new)
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Submit bar ───────────────────────────────────────────────── */}
         <div className="flex items-center justify-between pt-2 pb-8">

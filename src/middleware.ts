@@ -39,6 +39,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/auth/confirm") ||   // invite token exchange
     pathname.startsWith("/set-password") ||   // accessible after OTP; guarded by session check in the page
     pathname.startsWith("/kyc/") ||           // public client-facing KYC form (token-gated)
+    pathname.startsWith("/edd/") ||           // public client-facing EDD form (token-gated)
     pathname === "/privacy" ||
     pathname === "/terms";
   if (!isPublic && !user) {

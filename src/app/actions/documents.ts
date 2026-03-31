@@ -251,6 +251,32 @@ export async function updateResponsiblePersonAction(
   }
 }
 
+/** Revokes (terminates) the active responsible person. System admin only. */
+export async function revokeResponsiblePersonAction(
+  id: string,
+  terminationReason: string
+): Promise<{ error?: string }> {
+  try {
+    await assertCanManage();
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("responsible_persons")
+      .update({
+        status:            "terminated",
+        termination_date:  new Date().toISOString().slice(0, 10),
+        termination_reason: terminationReason.trim() || null,
+      })
+      .eq("id", id)
+      .eq("status", "active");
+    if (error) return { error: error.message };
+    revalidatePath("/documents/aml");
+    revalidatePath("/dashboard");
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 /** Returns a 1-hour signed download URL for an appointment document. */
 export async function getResponsiblePersonDocumentUrlAction(
   filePath: string

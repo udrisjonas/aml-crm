@@ -17,8 +17,15 @@ import {
   invalidateKycTokenAction,
   type IndividualDetailsUpdate,
 } from "@/app/actions/clients";
+import {
+  terminateClientAction,
+  approveRevivalAction,
+  rejectRevivalAction,
+} from "@/app/actions/termination";
 import type { RelationshipOption } from "@/app/(app)/clients/new/page";
 import { validateLithuanianPersonalCode } from "@/lib/validation/lithuanianPersonalCode";
+import EddTab from "./EddTab";
+import { useRoles } from "@/context/RolesContext";
 
 // alias for saving email in the send-to-client modal
 const saveEmailAction = updateIndividualDetailsAction;
@@ -88,6 +95,16 @@ interface OriginalsVerified {
   verifier: { full_name: string | null } | null;
 }
 
+interface PendingRevival {
+  id: string;
+  status: string;
+  revival_justification: string | null;
+  revived_by: string;
+  created_at: string;
+  reviewer_notes: string | null;
+  reviewed_at: string | null;
+}
+
 interface ClientData {
   id: string;
   client_type: string;
@@ -99,6 +116,12 @@ interface ClientData {
   created_at: string;
   updated_at: string;
   notes: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
+  termination_reason: string | null;
+  termination_notes: string | null;
+  termination_category: string | null;
+  revival_requires_aml_review: boolean;
   individual_details: IndividualDetails | null;
   broker: { id: string; full_name: string | null; email: string } | null;
   client_representatives: Representative[];
@@ -128,6 +151,51 @@ interface FieldChange {
   changed_at: string;
 }
 
+interface EddQuestionnaire {
+  id: string;
+  status: string;
+  triggered_reason: string | null;
+  sent_at: string | null;
+  client_completed_at: string | null;
+  aml_officer_reviewed_at: string | null;
+  aml_officer_notes: string | null;
+  aml_officer_recommendation: string | null;
+  senior_manager_reviewed_at: string | null;
+  senior_manager_notes: string | null;
+  senior_manager_decision: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface EddResponse {
+  id: string;
+  question_key: string;
+  answer: string | null;
+}
+
+interface EddDocument {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  created_at: string;
+  request_id: string | null;
+  review_status: string | null;
+  review_notes: string | null;
+  review_rejection_reason: string | null;
+  reviewed_at: string | null;
+  reviewer: { full_name: string | null } | null;
+}
+
+interface EddDocumentRequest {
+  id: string;
+  document_name: string;
+  description: string | null;
+  is_required: boolean;
+  sort_order: number;
+}
+
 interface ActiveToken {
   id: string;
   token: string;
@@ -136,7 +204,7 @@ interface ActiveToken {
   expires_at: string;
 }
 
-type Tab = "overview" | "kyc" | "documents" | "risk" | "audit";
+type Tab = "overview" | "kyc" | "documents" | "risk" | "audit" | "edd";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -547,6 +615,225 @@ function StatusDropdown({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Termination labels ────────────────────────────────────────────────────────
+
+const TERMINATION_REASONS: { value: string; label: string; isAml: boolean }[] = [
+  { value: "relationship_completed",      label: "Relationship completed",              isAml: false },
+  { value: "client_request",              label: "Client request",                      isAml: false },
+  { value: "no_longer_requires_services", label: "No longer requires services",         isAml: false },
+  { value: "cdd_not_completed",           label: "CDD not completed",                   isAml: true  },
+  { value: "suspicious_activity",         label: "Suspicious activity",                 isAml: true  },
+  { value: "sanctions_pep_concerns",      label: "Sanctions / PEP concerns",            isAml: true  },
+  { value: "refused_information",         label: "Refused to provide information",      isAml: true  },
+  { value: "other_aml_reason",            label: "Other AML reason",                    isAml: true  },
+];
+
+const TERMINATION_REASON_LABELS: Record<string, string> = Object.fromEntries(
+  TERMINATION_REASONS.map((r) => [r.value, r.label])
+);
+
+// ── TerminationModal ──────────────────────────────────────────────────────────
+
+function TerminationModal({
+  clientId,
+  onClose,
+  onDone,
+}: {
+  clientId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [notes, setNotes]   = useState("");
+  const [isPending, startTransition] = useTransition();
+  const [error, setError]   = useState("");
+
+  const selectedReason = TERMINATION_REASONS.find((r) => r.value === reason);
+  const isAml = selectedReason?.isAml ?? false;
+  const notesRequired = isAml;
+
+  function handleConfirm() {
+    if (!reason) { setError("Please select a termination reason."); return; }
+    if (notesRequired && !notes.trim()) { setError("Notes are required for AML termination reasons."); return; }
+    setError("");
+    startTransition(async () => {
+      const res = await terminateClientAction(clientId, reason, notes);
+      if (!res.ok) { setError(res.error ?? "Unknown error"); return; }
+      onDone();
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <h2 className="text-base font-semibold text-slate-900">Archive client</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">
+              Termination reason <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className={selectCls}
+            >
+              <option value="">— Select reason —</option>
+              <optgroup label="Normal">
+                {TERMINATION_REASONS.filter((r) => !r.isAml).map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="AML / Compliance">
+                {TERMINATION_REASONS.filter((r) => r.isAml).map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+
+          {isAml && (
+            <div className="flex items-start gap-3 p-3.5 bg-red-50 border border-red-200 rounded-xl">
+              <svg className="w-5 h-5 text-red-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <div>
+                <p className="text-sm font-semibold text-red-800">AML termination</p>
+                <p className="text-sm text-red-700 mt-0.5">
+                  This client will be flagged as AML-terminated. Revival will require AML officer review.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">
+              Notes {notesRequired ? <span className="text-red-500">*</span> : <span className="text-slate-400">(optional)</span>}
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className={inputCls + " resize-none"}
+              placeholder={isAml ? "Document the reason for AML termination…" : "Any additional context…"}
+            />
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={handleConfirm}
+              disabled={isPending}
+              className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-semibold rounded-lg transition"
+            >
+              {isPending ? "Archiving…" : "Archive client"}
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 border border-slate-300 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── RevivalModal (AML) ────────────────────────────────────────────────────────
+
+function AmlRevivalModal({
+  revivalId,
+  onClose,
+  onDone,
+}: {
+  revivalId: string;
+  onClose: () => void;
+  onDone: (newClientId: string) => void;
+}) {
+  const [action, setAction]   = useState<"approve" | "reject" | null>(null);
+  const [notes, setNotes]     = useState("");
+  const [isPending, startTransition] = useTransition();
+  const [error, setError]     = useState("");
+
+  function handleApprove() {
+    setAction("approve");
+    startTransition(async () => {
+      const res = await approveRevivalAction(revivalId);
+      if (!res.ok) { setError(res.error ?? "Unknown error"); setAction(null); return; }
+      onDone(res.newClientId!);
+    });
+  }
+
+  function handleReject() {
+    if (!notes.trim()) { setError("Please provide rejection notes."); return; }
+    setAction("reject");
+    startTransition(async () => {
+      const res = await rejectRevivalAction(revivalId, notes);
+      if (!res.ok) { setError(res.error ?? "Unknown error"); setAction(null); return; }
+      onClose();
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <h2 className="text-base font-semibold text-slate-900">Review revival request</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Reviewer notes (required for rejection)</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className={inputCls + " resize-none"}
+              placeholder="Notes for the requestor…"
+            />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={handleApprove}
+              disabled={isPending}
+              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white text-sm font-semibold rounded-lg transition"
+            >
+              {isPending && action === "approve" ? "Approving…" : "Approve & create new client"}
+            </button>
+            <button
+              onClick={handleReject}
+              disabled={isPending}
+              className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-semibold rounded-lg transition"
+            >
+              {isPending && action === "reject" ? "Rejecting…" : "Reject"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1621,13 +1908,15 @@ function AuditTab({ fieldChanges }: { fieldChanges: FieldChange[] }) {
 // Root component
 // ══════════════════════════════════════════════════════════════════════════════
 
-const TABS: { id: Tab; label: string }[] = [
+const TABS_BASE: { id: Tab; label: string }[] = [
   { id: "overview",   label: "Overview" },
   { id: "kyc",        label: "KYC Details" },
   { id: "documents",  label: "Documents" },
   { id: "risk",       label: "Risk Assessment" },
   { id: "audit",      label: "Audit Log" },
 ];
+
+const EDD_TAB: { id: Tab; label: string } = { id: "edd", label: "EDD" };
 
 export default function ClientDetail({
   client,
@@ -1637,6 +1926,11 @@ export default function ClientDetail({
   purposeOptions = [],
   frequencyOptions = [],
   useOptions = [],
+  eddQuestionnaire = null,
+  eddResponses = [],
+  eddDocuments = [],
+  eddDocumentRequests = [],
+  pendingRevival = null,
 }: {
   client: ClientData;
   documents: DocumentRecord[];
@@ -1645,13 +1939,30 @@ export default function ClientDetail({
   purposeOptions?: RelationshipOption[];
   frequencyOptions?: RelationshipOption[];
   useOptions?: RelationshipOption[];
+  eddQuestionnaire?: EddQuestionnaire | null;
+  eddResponses?: EddResponse[];
+  eddDocuments?: EddDocument[];
+  eddDocumentRequests?: EddDocumentRequest[];
+  pendingRevival?: PendingRevival | null;
 }) {
   const router = useRouter();
+  const { hasRole } = useRoles();
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [showSendModal, setShowSendModal] = useState(false);
   const [sentResult, setSentResult] = useState<{ url: string; emailSent: boolean } | null>(null);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [showRevivalModal, setShowRevivalModal] = useState(false);
   const [invalidatePending, startInvalidateTransition] = useTransition();
   const d = client.individual_details;
+
+  const isArchived = client.client_status === "archived";
+  const canArchive =
+    !isArchived &&
+    (hasRole("aml_officer") || hasRole("broker") || hasRole("system_admin"));
+  const canReviewRevival =
+    isArchived &&
+    pendingRevival &&
+    (hasRole("aml_officer") || hasRole("system_admin"));
 
   const fullName = d ? `${d.first_name} ${d.last_name}` : "Unknown client";
   const kycBadge = KYC_STATUS_BADGES[client.kyc_status] ?? KYC_STATUS_BADGES.draft;
@@ -1690,6 +2001,20 @@ export default function ClientDetail({
           emailSent={sentResult.emailSent}
           clientEmail={d?.email ?? ""}
           onClose={() => { setSentResult(null); router.refresh(); }}
+        />
+      )}
+      {showArchiveModal && (
+        <TerminationModal
+          clientId={client.id}
+          onClose={() => setShowArchiveModal(false)}
+          onDone={() => { setShowArchiveModal(false); router.refresh(); }}
+        />
+      )}
+      {showRevivalModal && pendingRevival && (
+        <AmlRevivalModal
+          revivalId={pendingRevival.id}
+          onClose={() => setShowRevivalModal(false)}
+          onDone={(newClientId) => { router.push(`/clients/${newClientId}`); }}
         />
       )}
 
@@ -1754,29 +2079,104 @@ export default function ClientDetail({
               )}
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setActiveTab("kyc")}
-                className="px-3.5 py-2 border border-slate-300 text-slate-700 text-sm font-medium
-                  rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Edit details
-              </button>
-              <button
-                onClick={() => setShowSendModal(true)}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium
-                  rounded-lg transition-colors"
-              >
-                {activeToken ? "Resend to client" : "Send to client"}
-              </button>
-              <StatusDropdown
-                clientId={client.id}
-                currentStatus={client.kyc_status}
-                onDone={() => router.refresh()}
-              />
+            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+              {!isArchived && (
+                <>
+                  <button
+                    onClick={() => setActiveTab("kyc")}
+                    className="px-3.5 py-2 border border-slate-300 text-slate-700 text-sm font-medium
+                      rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    Edit details
+                  </button>
+                  <button
+                    onClick={() => setShowSendModal(true)}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium
+                      rounded-lg transition-colors"
+                  >
+                    {activeToken ? "Resend to client" : "Send to client"}
+                  </button>
+                  <StatusDropdown
+                    clientId={client.id}
+                    currentStatus={client.kyc_status}
+                    onDone={() => router.refresh()}
+                  />
+                </>
+              )}
+              {canArchive && (
+                <button
+                  onClick={() => setShowArchiveModal(true)}
+                  className="px-3.5 py-2 border border-red-200 text-red-600 text-sm font-medium
+                    rounded-lg hover:bg-red-50 transition-colors"
+                >
+                  Archive client
+                </button>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Archived banner */}
+        {isArchived && (
+          <div className="px-8 pb-3">
+            <div className="rounded-xl border border-slate-300 bg-slate-50 p-4 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12h12L19 8" />
+                  </svg>
+                  <span className="text-sm font-semibold text-slate-700">
+                    Client archived
+                    {client.archived_at && ` · ${fmt(client.archived_at)}`}
+                  </span>
+                  {client.termination_category === "aml" && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                      AML termination
+                    </span>
+                  )}
+                  {client.revival_requires_aml_review && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                      Revival requires AML review
+                    </span>
+                  )}
+                </div>
+                {canReviewRevival && (
+                  <button
+                    onClick={() => setShowRevivalModal(true)}
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Review revival request
+                  </button>
+                )}
+              </div>
+              {client.termination_reason && (
+                <p className="text-sm text-slate-600">
+                  <span className="font-medium">Reason:</span>{" "}
+                  {TERMINATION_REASON_LABELS[client.termination_reason] ?? client.termination_reason}
+                </p>
+              )}
+              {client.termination_notes && (
+                <p className="text-sm text-slate-600">
+                  <span className="font-medium">Notes:</span> {client.termination_notes}
+                </p>
+              )}
+              {pendingRevival && (
+                <div className="mt-2 pt-2 border-t border-slate-200">
+                  <p className="text-xs text-blue-700 font-medium">
+                    Revival request pending review
+                    {pendingRevival.created_at && ` · Submitted ${fmt(pendingRevival.created_at)}`}
+                  </p>
+                  {pendingRevival.revival_justification && (
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Justification: {pendingRevival.revival_justification}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* EDD banner */}
         {client.edd_status === "triggered" && (
@@ -1794,7 +2194,7 @@ export default function ClientDetail({
 
         {/* Tab nav */}
         <div className="px-8 flex gap-0">
-          {TABS.map((tab) => (
+          {[...TABS_BASE, ...(client.edd_status !== "not_required" ? [EDD_TAB] : [])].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -1815,6 +2215,11 @@ export default function ClientDetail({
                   {fieldChanges.length}
                 </span>
               )}
+              {tab.id === "edd" && (
+                client.edd_status === "triggered" || client.edd_status === "client_completed" || client.edd_status === "escalated"
+              ) && (
+                <span className="ml-1.5 w-2 h-2 rounded-full bg-red-500 inline-block" />
+              )}
             </button>
           ))}
         </div>
@@ -1827,6 +2232,17 @@ export default function ClientDetail({
         {activeTab === "documents"  && <DocumentsTab client={client} documents={documents} />}
         {activeTab === "risk"       && <RiskTab client={client} />}
         {activeTab === "audit"      && <AuditTab fieldChanges={fieldChanges} />}
+        {activeTab === "edd"        && (
+          <EddTab
+            clientId={client.id}
+            eddStatus={client.edd_status}
+            clientEmail={client.individual_details?.email ?? null}
+            questionnaire={eddQuestionnaire}
+            responses={eddResponses}
+            documents={eddDocuments}
+            documentRequests={eddDocumentRequests}
+          />
+        )}
       </div>
     </div>
   );

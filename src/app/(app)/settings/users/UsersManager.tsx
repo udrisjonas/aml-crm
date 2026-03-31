@@ -110,6 +110,7 @@ export default function UsersManager({
 
   // Active users
   const [users, setUsers] = useState<UserRow[]>(initialUsers);
+  const [showArchived, setShowArchived] = useState(false);
   const [addingRoleFor, setAddingRoleFor] = useState<string | null>(null);
   const [tableError, setTableError] = useState("");
 
@@ -560,15 +561,27 @@ export default function UsersManager({
         )}
       </div>
 
-      {/* ── Active Users ───────────────────────────────────────────────────── */}
+      {/* ── Users ─────────────────────────────────────────────────────────── */}
       <section>
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
-            Active Users
-          </h2>
-          <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-            {users.length}
-          </span>
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
+              {showArchived ? "Archived Users" : "Active Users"}
+            </h2>
+            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+              {users.filter((u) => showArchived ? !u.is_active : u.is_active).length}
+            </span>
+          </div>
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+              showArchived
+                ? "border-slate-400 bg-slate-100 text-slate-700"
+                : "border-slate-300 text-slate-500 hover:bg-slate-50"
+            }`}
+          >
+            {showArchived ? "← Active users" : "Archived"}
+          </button>
         </div>
 
         {tableError && (
@@ -597,7 +610,7 @@ export default function UsersManager({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {users.map((user) => {
+              {users.filter((u) => showArchived ? !u.is_active : u.is_active).map((user) => {
                 const userRoles = (user.user_roles ?? []) as UserRoleRow[];
                 const assignedRoleIds = new Set(userRoles.map((r) => r.roles.id));
                 const availableRoles = allRoles.filter(
@@ -711,20 +724,20 @@ export default function UsersManager({
                             : "text-emerald-600 hover:text-emerald-800"
                         }`}
                       >
-                        {user.is_active ? "Deactivate" : "Reactivate"}
+                        {user.is_active ? "Archive" : "Restore"}
                       </button>
                     </td>
                   </tr>
                 );
               })}
 
-              {users.length === 0 && (
+              {users.filter((u) => showArchived ? !u.is_active : u.is_active).length === 0 && (
                 <tr>
                   <td
                     colSpan={5}
                     className="px-6 py-10 text-center text-slate-400 text-sm"
                   >
-                    No users yet. Use the buttons above to add someone.
+                    {showArchived ? "No archived users." : "No users yet. Use the buttons above to add someone."}
                   </td>
                 </tr>
               )}

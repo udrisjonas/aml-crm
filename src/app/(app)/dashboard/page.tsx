@@ -151,6 +151,8 @@ export default async function DashboardPage() {
     { data: kycSubmitted },
     { data: highRiskPending },
     { data: eddTriggered },
+    { data: eddClientCompleted },
+    { data: eddEscalated },
     { data: expiredTokens },
     { data: recentDocs },
     { data: overdueReviews },
@@ -158,6 +160,10 @@ export default async function DashboardPage() {
     { data: overdueComplianceDocs },
     { data: activeResponsiblePersons },
     { data: recentChanges },
+    { data: amlTerminated },
+    { data: pendingRevivals },
+    { data: ackRequirements },
+    { data: userAcknowledgments },
   ] = await Promise.all([
     // Stats
     admin
@@ -202,14 +208,34 @@ export default async function DashboardPage() {
       .neq("kyc_status", "rejected")
       .order("updated_at", { ascending: false })
       .limit(20),
+    // EDD triggered (not yet sent to client)
     admin
       .from("clients")
       .select(
         "id, edd_status, updated_at, individual_details(first_name, last_name)"
       )
       .in("id", safeIds)
-      .not("edd_status", "is", null)
-      .neq("edd_status", "completed")
+      .eq("edd_status", "triggered")
+      .order("updated_at", { ascending: false })
+      .limit(20),
+    // EDD client completed (awaiting AML review)
+    admin
+      .from("clients")
+      .select(
+        "id, edd_status, updated_at, individual_details(first_name, last_name)"
+      )
+      .in("id", safeIds)
+      .eq("edd_status", "client_completed")
+      .order("updated_at", { ascending: false })
+      .limit(20),
+    // EDD escalated (awaiting senior manager)
+    admin
+      .from("clients")
+      .select(
+        "id, edd_status, updated_at, individual_details(first_name, last_name)"
+      )
+      .in("id", safeIds)
+      .eq("edd_status", "escalated")
       .order("updated_at", { ascending: false })
       .limit(20),
     admin
@@ -271,8 +297,41 @@ export default async function DashboardPage() {
       )
       .in("client_id", safeIds)
       .order("changed_at", { ascending: false })
-      .limit(30)
+      .limit(10)
       .returns<RecentChange[]>(),
+
+    // AML-terminated clients (recent 14 days)
+    admin
+      .from("clients")
+      .select("id, archived_at, individual_details(first_name, last_name)")
+      .in("id", safeIds)
+      .eq("termination_category", "aml")
+      .eq("client_status", "archived")
+      .gte("archived_at", new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString())
+      .order("archived_at", { ascending: false })
+      .limit(20),
+
+    // Pending AML revival requests
+    isBroker
+      ? Promise.resolve({ data: [] })
+      : admin
+          .from("client_revivals")
+          .select("id, original_client_id, created_at")
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(20),
+
+    // Document acknowledgment requirements joined with active compliance documents
+    admin
+      .from("document_acknowledgment_requirements")
+      .select("id, document_id, required_roles, specific_user_ids, compliance_documents!inner(id, title, status)")
+      .eq("compliance_documents.status", "active"),
+
+    // User's existing acknowledgments
+    admin
+      .from("document_acknowledgments")
+      .select("document_id")
+      .eq("user_id", user.id),
   ]);
 
   // Build dismissed lookup set
@@ -325,7 +384,39 @@ export default async function DashboardPage() {
         type: "EDD_TRIGGERED",
         referenceId: c.id,
         clientId: c.id,
-        title: "Enhanced due diligence triggered",
+        title: "EDD triggered — send questionnaire to client",
+        subtitle: extractClientName(c.individual_details),
+        priority: "red",
+        createdAt: c.updated_at,
+      });
+    }
+  }
+
+  for (const c of eddClientCompleted ?? []) {
+    const key = `EDD_CLIENT_COMPLETED::${c.id}`;
+    if (!dismissedSet.has(key)) {
+      rawNotifs.push({
+        key,
+        type: "EDD_CLIENT_COMPLETED",
+        referenceId: c.id,
+        clientId: c.id,
+        title: "EDD questionnaire completed — review required",
+        subtitle: extractClientName(c.individual_details),
+        priority: "blue",
+        createdAt: c.updated_at,
+      });
+    }
+  }
+
+  for (const c of eddEscalated ?? []) {
+    const key = `EDD_ESCALATED::${c.id}`;
+    if (!dismissedSet.has(key)) {
+      rawNotifs.push({
+        key,
+        type: "EDD_ESCALATED",
+        referenceId: c.id,
+        clientId: c.id,
+        title: "EDD escalated — senior manager decision required",
         subtitle: extractClientName(c.individual_details),
         priority: "red",
         createdAt: c.updated_at,
@@ -396,6 +487,66 @@ export default async function DashboardPage() {
     });
   }
 
+  // AML terminations
+  for (const c of (amlTerminated ?? []) as Array<{ id: string; archived_at: string | null; individual_details: unknown }>) {
+    const key = `AML_TERMINATED::${c.id}`;
+    if (!dismissedSet.has(key)) {
+      rawNotifs.push({
+        key,
+        type: "AML_TERMINATED",
+        referenceId: c.id,
+        clientId: c.id,
+        href: `/clients/${c.id}`,
+        title: "Client archived for AML reasons — consider filing STR",
+        subtitle: extractClientName(c.individual_details),
+        priority: "amber",
+        createdAt: c.archived_at ?? now.toISOString(),
+      });
+    }
+  }
+
+  // Pending revival requests (AML officers only)
+  for (const r of (pendingRevivals ?? []) as Array<{ id: string; original_client_id: string; created_at: string }>) {
+    const key = `REVIVAL_PENDING::${r.id}`;
+    if (!dismissedSet.has(key)) {
+      rawNotifs.push({
+        key,
+        type: "REVIVAL_PENDING",
+        referenceId: r.id,
+        clientId: r.original_client_id,
+        href: `/clients/${r.original_client_id}`,
+        title: "Pending AML revival request — review required",
+        subtitle: `Submitted ${new Date(r.created_at).toLocaleDateString("en-GB")}`,
+        priority: "blue",
+        createdAt: r.created_at,
+      });
+    }
+  }
+
+  // Pending document acknowledgments — one notification per document
+  const ackedDocIds = new Set((userAcknowledgments ?? []).map((a: { document_id: string }) => a.document_id));
+  for (const req of (ackRequirements ?? []) as Array<{ id: string; document_id: string; required_roles: string[]; specific_user_ids: string[]; compliance_documents: { id: string; title: string; status: string } | null }>) {
+    if (ackedDocIds.has(req.document_id)) continue;
+    const requiresUser =
+      req.required_roles.some((r: string) => roleNames.includes(r)) ||
+      req.specific_user_ids.includes(user.id);
+    if (!requiresUser) continue;
+    const docTitle = req.compliance_documents?.title ?? "Compliance document";
+    const key = `PENDING_ACK_DOC::${req.document_id}`;
+    if (!dismissedSet.has(key)) {
+      rawNotifs.push({
+        key,
+        type: "PENDING_ACK_DOC",
+        referenceId: req.document_id,
+        href: "/documents/aml",
+        title: "Document requires acknowledgment",
+        subtitle: docTitle,
+        priority: "blue",
+        createdAt: now.toISOString(),
+      });
+    }
+  }
+
   // Overdue compliance documents
   for (const doc of (overdueComplianceDocs ?? []) as Array<{ id: string; title: string; next_review_date: string | null; status: string }>) {
     const key = `COMPLIANCE_DOC_OVERDUE::${doc.id}`;
@@ -462,7 +613,7 @@ export default async function DashboardPage() {
     }
   }
 
-  const activityItems = (recentChanges ?? []).slice(0, 15).map((c) => ({
+  const activityItems = (recentChanges ?? []).slice(0, 10).map((c) => ({
     id: c.id,
     clientId: c.client_id,
     clientName: clientNameMap[c.client_id] ?? "Unknown",
@@ -600,10 +751,13 @@ export default async function DashboardPage() {
         <div className="xl:col-span-2 flex flex-col gap-6">
           {/* Activity feed */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-base font-semibold text-slate-800">
                 Recent Activity
               </h2>
+              <Link href="/activity" className="text-xs text-blue-600 hover:underline">
+                View full history
+              </Link>
             </div>
             {activityItems.length === 0 ? (
               <div className="px-5 py-8 text-center text-slate-400 text-sm">

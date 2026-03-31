@@ -58,6 +58,15 @@ export interface ProfileOption {
   email: string;
 }
 
+export interface DocAcknowledgmentInfo {
+  requirementId: string;
+  requiredRoles: string[];
+  specificUserIds: string[];
+  requiresCurrentUser: boolean;
+  userHasAcknowledged: boolean;
+  progress?: { acknowledged: number; total: number };
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface Props {
@@ -65,7 +74,9 @@ interface Props {
   responsiblePersons: ResponsiblePerson[];
   profiles: ProfileOption[];
   canManage: boolean;
+  canRevoke: boolean;
   initialTab: "documents" | "responsible";
+  acknowledgmentInfo: Record<string, DocAcknowledgmentInfo>;
 }
 
 const TABS = [
@@ -78,7 +89,9 @@ export default function AmlDocumentsPage({
   responsiblePersons,
   profiles,
   canManage,
+  canRevoke,
   initialTab,
+  acknowledgmentInfo,
 }: Props) {
   const [tab, setTab] = useState<"documents" | "responsible">(initialTab);
 
@@ -119,12 +132,13 @@ export default function AmlDocumentsPage({
 
       {/* Tab content */}
       {tab === "documents" ? (
-        <AmlDocumentsTab documents={documents} canManage={canManage} />
+        <AmlDocumentsTab documents={documents} canManage={canManage} profiles={profiles} acknowledgmentInfo={acknowledgmentInfo} />
       ) : (
         <ResponsiblePersonTab
           responsiblePersons={responsiblePersons}
           profiles={profiles}
           canManage={canManage}
+          canRevoke={canRevoke}
         />
       )}
     </div>

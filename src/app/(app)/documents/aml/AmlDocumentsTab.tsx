@@ -8,7 +8,11 @@ import {
   updateComplianceDocumentMetadataAction,
   getComplianceDocumentUrlAction,
 } from "@/app/actions/documents";
-import type { ComplianceDocument } from "./AmlDocumentsPage";
+import {
+  setAcknowledgmentRequirementAction,
+  acknowledgeDocumentAction,
+} from "@/app/actions/acknowledgments";
+import type { ComplianceDocument, ProfileOption, DocAcknowledgmentInfo } from "./AmlDocumentsPage";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -89,14 +93,22 @@ function addMonths(dateStr: string, months: number): string {
 
 // ── Upload Modal ──────────────────────────────────────────────────────────────
 
+const ACKNOWLEDGMENT_ROLES = [
+  { value: "aml_officer",     label: "AML Officers" },
+  { value: "broker",          label: "Brokers" },
+  { value: "senior_manager",  label: "Senior Managers" },
+  { value: "system_admin",    label: "System Admins" },
+];
+
 interface UploadModalProps {
   documents: ComplianceDocument[];
+  profiles: ProfileOption[];
   prefillType?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-function UploadModal({ documents, prefillType, onClose, onSuccess }: UploadModalProps) {
+function UploadModal({ documents, profiles, prefillType, onClose, onSuccess }: UploadModalProps) {
   const [docType, setDocType] = useState(prefillType ?? "");
   const [title, setTitle] = useState("");
   const [versionStr, setVersionStr] = useState("");
@@ -111,6 +123,11 @@ function UploadModal({ documents, prefillType, onClose, onSuccess }: UploadModal
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Acknowledgment
+  const [requireAck, setRequireAck] = useState(false);
+  const [ackRoles, setAckRoles] = useState<string[]>([]);
+  const [ackUserIds, setAckUserIds] = useState<string[]>([]);
 
   function handleTypeChange(t: string) {
     setDocType(t);
@@ -153,7 +170,7 @@ function UploadModal({ documents, prefillType, onClose, onSuccess }: UploadModal
       });
       if (!res.ok) throw new Error("File upload failed");
 
-      const { error: recErr } = await recordComplianceDocumentAction({
+      const { id: newDocId, error: recErr } = await recordComplianceDocumentAction({
         document_type:    docType,
         title,
         description:      description || null,
@@ -170,6 +187,14 @@ function UploadModal({ documents, prefillType, onClose, onSuccess }: UploadModal
         changelog:        changelog || null,
       });
       if (recErr) throw new Error(recErr);
+
+      if (requireAck && newDocId && (ackRoles.length > 0 || ackUserIds.length > 0)) {
+        const { ok, error: ackErr } = await setAcknowledgmentRequirementAction(
+          newDocId, ackRoles, ackUserIds
+        );
+        if (!ok) throw new Error(ackErr ?? "Failed to set acknowledgment requirement");
+      }
+
       onSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
@@ -306,6 +331,58 @@ function UploadModal({ documents, prefillType, onClose, onSuccess }: UploadModal
             <textarea rows={2} className={inputCls + " resize-none"} value={description}
               onChange={(e) => setDescription(e.target.value)} />
           </div>
+
+          {/* Acknowledgment requirements */}
+          <div className="border-t border-slate-100 pt-4">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input type="checkbox" className="accent-blue-600 w-4 h-4"
+                checked={requireAck} onChange={(e) => setRequireAck(e.target.checked)} />
+              <span className="text-sm font-medium text-slate-700">Require staff acknowledgment</span>
+            </label>
+            {requireAck && (
+              <div className="mt-3 space-y-3 pl-6">
+                <div>
+                  <p className="text-xs font-medium text-slate-600 mb-2">By role</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ACKNOWLEDGMENT_ROLES.map((r) => (
+                      <label key={r.value} className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-700">
+                        <input
+                          type="checkbox"
+                          className="accent-blue-600"
+                          checked={ackRoles.includes(r.value)}
+                          onChange={(e) => setAckRoles((prev) =>
+                            e.target.checked ? [...prev, r.value] : prev.filter((v) => v !== r.value)
+                          )}
+                        />
+                        {r.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                {profiles.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-600 mb-2">Specific users (optional)</p>
+                    <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                      {profiles.map((p) => (
+                        <label key={p.id} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50 text-xs text-slate-700">
+                          <input
+                            type="checkbox"
+                            className="accent-blue-600"
+                            checked={ackUserIds.includes(p.id)}
+                            onChange={(e) => setAckUserIds((prev) =>
+                              e.target.checked ? [...prev, p.id] : prev.filter((v) => v !== p.id)
+                            )}
+                          />
+                          <span>{p.full_name ?? p.email}</span>
+                          <span className="text-slate-400 ml-auto">{p.email}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </form>
         <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 shrink-0">
           <button type="button" onClick={onClose}
@@ -412,13 +489,70 @@ interface DocumentCardProps {
   doc: ComplianceDocument;
   allDocs: ComplianceDocument[];
   canManage: boolean;
+  ackInfo?: DocAcknowledgmentInfo;
   onUploadNewVersion: (type: string) => void;
   onEdit: (doc: ComplianceDocument) => void;
 }
 
-function DocumentCard({ doc, allDocs, canManage, onUploadNewVersion, onEdit }: DocumentCardProps) {
+function AcknowledgeModal({ doc, onClose, onSuccess }: { doc: ComplianceDocument; onClose: () => void; onSuccess: () => void }) {
+  const [checked, setChecked] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState("");
+
+  function handleConfirm() {
+    startTransition(async () => {
+      const res = await acknowledgeDocumentAction(doc.id);
+      if (!res.ok) { setError(res.error ?? "Failed"); return; }
+      onSuccess();
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-800">Acknowledge document</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <p className="text-sm text-slate-700">You are acknowledging that you have read and understood:</p>
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <p className="text-sm font-semibold text-slate-800">{doc.title}</p>
+            <p className="text-xs text-slate-500 mt-0.5">v{doc.version} — {DOC_TYPE_LABELS[doc.document_type] ?? doc.document_type}</p>
+          </div>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" className="accent-blue-600 mt-0.5 w-4 h-4 shrink-0"
+              checked={checked} onChange={(e) => setChecked(e.target.checked)} />
+            <span className="text-sm text-slate-700">
+              I confirm that I have read, understood, and will comply with this document.
+            </span>
+          </label>
+        </div>
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+          <button onClick={onClose}
+            className="px-4 py-2 border border-slate-300 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50">
+            Cancel
+          </button>
+          <button onClick={handleConfirm} disabled={!checked || isPending}
+            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-medium rounded-lg transition">
+            {isPending ? "Confirming…" : "Acknowledge"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DocumentCard({ doc, allDocs, canManage, ackInfo, onUploadNewVersion, onEdit }: DocumentCardProps) {
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [showAckModal, setShowAckModal] = useState(false);
+  const router = useRouter();
 
   const today = new Date().toISOString().split("T")[0];
   const reviewOverdue = doc.next_review_date && doc.next_review_date < today && doc.status === "active";
@@ -465,6 +599,17 @@ function DocumentCard({ doc, allDocs, canManage, onUploadNewVersion, onEdit }: D
           {doc.status === "superseded" && (
             <span className="shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400">
               Superseded
+            </span>
+          )}
+          {/* Acknowledgment badge */}
+          {ackInfo && ackInfo.requiresCurrentUser && !ackInfo.userHasAcknowledged && (
+            <span className="shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+              Requires acknowledgment
+            </span>
+          )}
+          {ackInfo && ackInfo.requiresCurrentUser && ackInfo.userHasAcknowledged && (
+            <span className="shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+              ✓ Acknowledged
             </span>
           )}
         </div>
@@ -562,9 +707,32 @@ function DocumentCard({ doc, allDocs, canManage, onUploadNewVersion, onEdit }: D
               </svg>
               Upload new version
             </button>
+            {/* Admin: acknowledgment progress */}
+            {ackInfo?.progress && (
+              <span className="ml-auto text-xs text-slate-500 self-center">
+                {ackInfo.progress.acknowledged}/{ackInfo.progress.total} acknowledged
+              </span>
+            )}
           </>
         )}
+        {/* Acknowledge button */}
+        {ackInfo?.requiresCurrentUser && !ackInfo.userHasAcknowledged && (
+          <button
+            onClick={() => setShowAckModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700
+              border border-amber-300 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+          >
+            Acknowledge
+          </button>
+        )}
       </div>
+      {showAckModal && (
+        <AcknowledgeModal
+          doc={doc}
+          onClose={() => setShowAckModal(false)}
+          onSuccess={() => { setShowAckModal(false); router.refresh(); }}
+        />
+      )}
     </div>
   );
 }
@@ -574,14 +742,20 @@ function DocumentCard({ doc, allDocs, canManage, onUploadNewVersion, onEdit }: D
 interface AmlDocumentsTabProps {
   documents: ComplianceDocument[];
   canManage: boolean;
+  profiles: ProfileOption[];
+  acknowledgmentInfo: Record<string, DocAcknowledgmentInfo>;
 }
 
-export default function AmlDocumentsTab({ documents, canManage }: AmlDocumentsTabProps) {
+export default function AmlDocumentsTab({ documents, canManage, profiles, acknowledgmentInfo }: AmlDocumentsTabProps) {
   const router = useRouter();
   const [filter, setFilter] = useState("");
   const [showUpload, setShowUpload] = useState(false);
   const [uploadPrefillType, setUploadPrefillType] = useState("");
   const [editingDoc, setEditingDoc] = useState<ComplianceDocument | null>(null);
+
+  const pendingAckCount = Object.values(acknowledgmentInfo).filter(
+    (a) => a.requiresCurrentUser && !a.userHasAcknowledged
+  ).length;
 
   function openUpload(type = "") {
     setUploadPrefillType(type);
@@ -610,6 +784,19 @@ export default function AmlDocumentsTab({ documents, canManage }: AmlDocumentsTa
 
   return (
     <div>
+      {/* Pending acknowledgment banner */}
+      {pendingAckCount > 0 && (
+        <div className="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+          <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <p className="text-sm text-amber-800 font-medium">
+            You have {pendingAckCount} document{pendingAckCount !== 1 ? "s" : ""} requiring your acknowledgment.
+          </p>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-5">
         <div />
@@ -667,6 +854,7 @@ export default function AmlDocumentsTab({ documents, canManage }: AmlDocumentsTa
                     key={doc.id}
                     doc={doc}
                     allDocs={documents}
+                    ackInfo={acknowledgmentInfo[doc.id]}
                     canManage={canManage}
                     onUploadNewVersion={openUpload}
                     onEdit={setEditingDoc}
@@ -682,6 +870,7 @@ export default function AmlDocumentsTab({ documents, canManage }: AmlDocumentsTa
       {showUpload && (
         <UploadModal
           documents={documents}
+          profiles={profiles}
           prefillType={uploadPrefillType}
           onClose={() => setShowUpload(false)}
           onSuccess={handleSuccess}

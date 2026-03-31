@@ -26,12 +26,16 @@ export default async function ClientDetailPage({
     { data: fieldChanges },
     { data: activeToken },
     { data: companySettings },
+    { data: eddQuestionnaire },
+    { data: eddDocuments },
   ] = await Promise.all([
     admin
       .from("clients")
       .select(`
         id, client_type, kyc_status, edd_status, risk_rating, client_status,
         is_represented, created_at, updated_at, notes,
+        archived_at, archived_by, termination_reason, termination_notes,
+        termination_category, revival_requires_aml_review,
         individual_details(*),
         broker:profiles!assigned_broker_id(id, full_name, email),
         client_representatives(*),
@@ -64,6 +68,58 @@ export default async function ClientDetailPage({
       .limit(1)
       .maybeSingle(),
     admin.from("company_settings").select("tenant_type").single(),
+
+    // EDD questionnaire (most recent)
+    admin
+      .from("edd_questionnaires")
+      .select(`
+        id, status, triggered_reason, sent_at, client_completed_at,
+        aml_officer_reviewed_at, aml_officer_notes, aml_officer_recommendation,
+        senior_manager_reviewed_at, senior_manager_notes, senior_manager_decision,
+        created_at, updated_at
+      `)
+      .eq("client_id", params.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
+    // EDD documents (include review fields + reviewer profile)
+    admin
+      .from("edd_documents")
+      .select(`
+        id, file_name, file_path, file_size, mime_type, created_at,
+        request_id, review_status, review_notes, review_rejection_reason, reviewed_at,
+        reviewer:profiles!reviewed_by(full_name)
+      `)
+      .eq("client_id", params.id)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  // Pending revival request for this client (if archived)
+  const { data: pendingRevival } = await admin
+    .from("client_revivals")
+    .select("id, status, revival_justification, revived_by, created_at, reviewer_notes, reviewed_at")
+    .eq("original_client_id", params.id)
+    .eq("status", "pending")
+    .limit(1)
+    .maybeSingle();
+
+  // EDD responses and document requests: load only if questionnaire exists
+  const [{ data: eddResponses }, { data: eddDocumentRequests }] = await Promise.all([
+    eddQuestionnaire
+      ? admin
+          .from("edd_responses")
+          .select("id, question_key, answer")
+          .eq("edd_questionnaire_id", eddQuestionnaire.id)
+          .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [] }),
+    eddQuestionnaire
+      ? admin
+          .from("edd_document_requests")
+          .select("id, document_name, description, is_required, sort_order")
+          .eq("edd_questionnaire_id", eddQuestionnaire.id)
+          .order("sort_order", { ascending: true })
+      : Promise.resolve({ data: [] }),
   ]);
 
   const tenantType = companySettings?.tenant_type ?? "real_estate";
@@ -121,6 +177,11 @@ export default async function ClientDetailPage({
       purposeOptions={purposeOptions}
       frequencyOptions={frequencyOptions}
       useOptions={useOptions}
+      eddQuestionnaire={(eddQuestionnaire ?? null) as never}
+      eddResponses={(eddResponses ?? []) as never}
+      eddDocuments={(eddDocuments ?? []) as never}
+      eddDocumentRequests={(eddDocumentRequests ?? []) as never}
+      pendingRevival={(pendingRevival ?? null) as never}
     />
   );
 }

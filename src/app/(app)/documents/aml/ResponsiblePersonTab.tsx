@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   appointResponsiblePersonAction,
   updateResponsiblePersonAction,
+  revokeResponsiblePersonAction,
   getAppointmentUploadUrlAction,
   getResponsiblePersonDocumentUrlAction,
 } from "@/app/actions/documents";
@@ -342,16 +343,150 @@ function UpdateModal({ person, onClose, onDone }: UpdateModalProps) {
   );
 }
 
+// ── PDF helpers ────────────────────────────────────────────────────────────────
+
+function printHtml(html: string) {
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+function appointmentPdfHtml(person: ResponsiblePerson): string {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Appointment — ${person.full_name}</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 720px; margin: 40px auto; font-size: 13px; color: #111; }
+  h1 { font-size: 20px; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 24px; }
+  h2 { font-size: 14px; margin-top: 24px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; color: #555; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 0; vertical-align: top; }
+  td:first-child { font-weight: bold; width: 220px; }
+  .footer { margin-top: 60px; border-top: 1px solid #ddd; padding-top: 16px; color: #666; font-size: 11px; }
+  @media print { body { margin: 20px; } }
+</style></head><body>
+<h1>Appointment of Responsible Person</h1>
+<h2>Personal details</h2>
+<table>
+  <tr><td>Full name</td><td>${person.full_name}</td></tr>
+  <tr><td>Position / Title</td><td>${person.position}</td></tr>
+  <tr><td>Appointment date</td><td>${fmt(person.appointment_date)}</td></tr>
+  ${person.appointed_by_name ? `<tr><td>Appointed by</td><td>${person.appointed_by_name}</td></tr>` : ""}
+</table>
+<h2>Regulator details</h2>
+<table>
+  <tr><td>Regulator</td><td>${person.regulator_name}</td></tr>
+  ${person.regulator_contact_email ? `<tr><td>Contact email</td><td>${person.regulator_contact_email}</td></tr>` : ""}
+  ${person.regulator_contact_phone ? `<tr><td>Contact phone</td><td>${person.regulator_contact_phone}</td></tr>` : ""}
+</table>
+<div class="footer">Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · AMLCycle</div>
+</body></html>`;
+}
+
+function revocationPdfHtml(person: ResponsiblePerson): string {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Revocation — ${person.full_name}</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 720px; margin: 40px auto; font-size: 13px; color: #111; }
+  h1 { font-size: 20px; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 24px; }
+  h2 { font-size: 14px; margin-top: 24px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; color: #555; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 0; vertical-align: top; }
+  td:first-child { font-weight: bold; width: 220px; }
+  .footer { margin-top: 60px; border-top: 1px solid #ddd; padding-top: 16px; color: #666; font-size: 11px; }
+  @media print { body { margin: 20px; } }
+</style></head><body>
+<h1>Revocation of Responsible Person</h1>
+<h2>Personal details</h2>
+<table>
+  <tr><td>Full name</td><td>${person.full_name}</td></tr>
+  <tr><td>Position / Title</td><td>${person.position}</td></tr>
+  <tr><td>Appointment date</td><td>${fmt(person.appointment_date)}</td></tr>
+  <tr><td>Termination date</td><td>${fmt(person.termination_date)}</td></tr>
+  ${person.termination_reason ? `<tr><td>Reason</td><td>${person.termination_reason}</td></tr>` : ""}
+</table>
+<div class="footer">Generated ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · AMLCycle</div>
+</body></html>`;
+}
+
+// ── RevokeModal ────────────────────────────────────────────────────────────────
+
+interface RevokeModalProps {
+  person: ResponsiblePerson;
+  onClose: () => void;
+  onDone: () => void;
+}
+
+function RevokeModal({ person, onClose, onDone }: RevokeModalProps) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [pending, start] = useTransition();
+  const router = useRouter();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    start(async () => {
+      const { error: err } = await revokeResponsiblePersonAction(person.id, reason);
+      if (err) { setError(err); return; }
+      router.refresh();
+      onDone();
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <h2 className="text-base font-semibold text-slate-900">Revoke Responsible Person</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            This will terminate <span className="font-semibold">{person.full_name}</span> as the active responsible person.
+            You should appoint a new responsible person immediately.
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Reason for revocation (optional)</label>
+            <textarea
+              className={inputCls + " resize-none"}
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Resigned from the position…"
+            />
+          </div>
+          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900">Cancel</button>
+            <button
+              type="submit"
+              disabled={pending}
+              className="px-5 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            >
+              {pending ? "Revoking…" : "Revoke"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── ActivePersonCard ──────────────────────────────────────────────────────────
 
 interface ActivePersonCardProps {
   person: ResponsiblePerson;
   canManage: boolean;
+  canRevoke: boolean;
   onUpdate: () => void;
   onAppoint: () => void;
+  onRevoke: () => void;
 }
 
-function ActivePersonCard({ person, canManage, onUpdate, onAppoint }: ActivePersonCardProps) {
+function ActivePersonCard({ person, canManage, canRevoke, onUpdate, onAppoint, onRevoke }: ActivePersonCardProps) {
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownload() {
@@ -384,11 +519,25 @@ function ActivePersonCard({ person, canManage, onUpdate, onAppoint }: ActivePers
               Update details
             </button>
             <button
+              onClick={() => printHtml(appointmentPdfHtml(person))}
+              className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50"
+            >
+              Print appointment
+            </button>
+            <button
               onClick={onAppoint}
               className="px-3 py-1.5 text-sm bg-slate-900 text-white rounded-lg hover:bg-slate-700"
             >
               Appoint new person
             </button>
+            {canRevoke && (
+              <button
+                onClick={onRevoke}
+                className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Revoke
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -460,6 +609,7 @@ function HistoryTable({ persons }: { persons: ResponsiblePerson[] }) {
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Appointed</th>
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Terminated</th>
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+              <th className="px-4 py-2.5" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
@@ -478,6 +628,14 @@ function HistoryTable({ persons }: { persons: ResponsiblePerson[] }) {
                     {p.status === "active" ? "Active" : "Terminated"}
                   </span>
                 </td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => printHtml(p.status === "active" ? appointmentPdfHtml(p) : revocationPdfHtml(p))}
+                    className="text-xs text-slate-400 hover:text-slate-700 transition-colors"
+                  >
+                    Print
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -493,15 +651,18 @@ interface ResponsiblePersonTabProps {
   responsiblePersons: ResponsiblePerson[];
   profiles: ProfileOption[];
   canManage: boolean;
+  canRevoke: boolean;
 }
 
 export default function ResponsiblePersonTab({
   responsiblePersons,
   profiles,
   canManage,
+  canRevoke,
 }: ResponsiblePersonTabProps) {
   const [showAppoint, setShowAppoint] = useState(false);
   const [showUpdate, setShowUpdate] = useState(false);
+  const [showRevoke, setShowRevoke] = useState(false);
 
   const active = responsiblePersons.find((p) => p.status === "active") ?? null;
 
@@ -539,8 +700,10 @@ export default function ResponsiblePersonTab({
         <ActivePersonCard
           person={active}
           canManage={canManage}
+          canRevoke={canRevoke}
           onUpdate={() => setShowUpdate(true)}
           onAppoint={() => setShowAppoint(true)}
+          onRevoke={() => setShowRevoke(true)}
         />
       )}
 
@@ -567,6 +730,13 @@ export default function ResponsiblePersonTab({
           person={active}
           onClose={() => setShowUpdate(false)}
           onDone={() => setShowUpdate(false)}
+        />
+      )}
+      {showRevoke && active && (
+        <RevokeModal
+          person={active}
+          onClose={() => setShowRevoke(false)}
+          onDone={() => setShowRevoke(false)}
         />
       )}
     </div>

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { extractRoleName } from "@/types/database";
 import AmlDocumentsPage from "./AmlDocumentsPage";
-import type { ComplianceDocument, ResponsiblePerson, ProfileOption } from "./AmlDocumentsPage";
+import type { ComplianceDocument, ResponsiblePerson, ProfileOption, DocAcknowledgmentInfo } from "./AmlDocumentsPage";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +28,7 @@ export default async function AmlDocumentsServerPage({
   );
   const canManage =
     roleNames.includes("system_admin") || roleNames.includes("senior_manager");
+  const canRevoke = roleNames.includes("system_admin");
 
   // Fetch all compliance documents for this tenant
   const { data: docsRaw } = await admin
@@ -145,13 +146,70 @@ export default async function AmlDocumentsServerPage({
   const initialTab =
     searchParams.tab === "responsible" ? "responsible" : "documents";
 
+  // Fetch acknowledgment requirements + current user's acknowledgments
+  const docIds = documents.map((d) => d.id);
+
+  const [{ data: ackReqs }, { data: userAcks }] = await Promise.all([
+    docIds.length > 0
+      ? admin
+          .from("document_acknowledgment_requirements")
+          .select("id, document_id, required_roles, specific_user_ids")
+          .in("document_id", docIds)
+      : Promise.resolve({ data: [] as { id: string; document_id: string; required_roles: string[]; specific_user_ids: string[] }[] }),
+    docIds.length > 0
+      ? admin
+          .from("document_acknowledgments")
+          .select("document_id, user_id")
+          .in("document_id", docIds)
+          .eq("user_id", user.id)
+      : Promise.resolve({ data: [] as { document_id: string; user_id: string }[] }),
+  ]);
+
+  // For admins: fetch acknowledgment counts per requirement
+  const reqIds = (ackReqs ?? []).map((r) => r.id);
+  const { data: ackCounts } = canManage && reqIds.length > 0
+    ? await admin
+        .from("document_acknowledgments")
+        .select("requirement_id")
+        .in("requirement_id", reqIds)
+    : { data: [] as { requirement_id: string }[] };
+
+  const ackCountMap: Record<string, number> = {};
+  for (const a of ackCounts ?? []) {
+    ackCountMap[a.requirement_id] = (ackCountMap[a.requirement_id] ?? 0) + 1;
+  }
+
+  const userAckedSet = new Set((userAcks ?? []).map((a) => a.document_id));
+
+  const acknowledgmentInfo: Record<string, DocAcknowledgmentInfo> = {};
+  for (const req of (ackReqs ?? []) as { id: string; document_id: string; required_roles: string[]; specific_user_ids: string[] }[]) {
+    const requiresCurrentUser =
+      req.required_roles.some((r) => roleNames.includes(r)) ||
+      req.specific_user_ids.includes(user.id);
+
+    // Compute total required: count profiles matching required roles + specific users (deduped)
+    // For simplicity, use acknowledgment count from DB for progress
+    const acknowledged = ackCountMap[req.id] ?? 0;
+
+    acknowledgmentInfo[req.document_id] = {
+      requirementId:      req.id,
+      requiredRoles:      req.required_roles,
+      specificUserIds:    req.specific_user_ids,
+      requiresCurrentUser,
+      userHasAcknowledged: userAckedSet.has(req.document_id),
+      progress: canManage ? { acknowledged, total: acknowledged } : undefined,
+    };
+  }
+
   return (
     <AmlDocumentsPage
       documents={documents}
       responsiblePersons={responsiblePersons}
       profiles={profiles}
       canManage={canManage}
+      canRevoke={canRevoke}
       initialTab={initialTab}
+      acknowledgmentInfo={acknowledgmentInfo}
     />
   );
 }

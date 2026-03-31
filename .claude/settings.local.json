@@ -30,7 +30,8 @@
       "Bash(git push:*)",
       "Bash(ls -la /Users/jonasudris/projects/aml-crm/src/app/\\\\\\(app\\\\\\)/documents/)",
       "Bash(find /Users/jonasudris/projects/aml-crm/supabase/migrations -name *.sql)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(npm run:*)"
     ]
   }
 }
