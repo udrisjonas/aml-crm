@@ -58,12 +58,12 @@ export async function sendEddToClientAction(
       token = existingRes.data.token;
       await admin
         .from("edd_questionnaires")
-        .update({ status: "sent_to_client", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({ status: "sent_to_client", sent_at: new Date().toISOString(), updated_at: new Date().toISOString(), token_language: language })
         .eq("id", eddId);
     } else {
       const { data: newEdd, error: createErr } = await admin
         .from("edd_questionnaires")
-        .insert({ client_id: clientId, status: "sent_to_client", triggered_reason: "pep", sent_at: new Date().toISOString() })
+        .insert({ client_id: clientId, status: "sent_to_client", triggered_reason: "pep", sent_at: new Date().toISOString(), token_language: language })
         .select("id, token")
         .single();
       if (createErr || !newEdd) return { ok: false, error: createErr?.message ?? "Failed to create EDD questionnaire" };

@@ -26,6 +26,7 @@ interface EddFormProps {
   initialAnswers: Record<string, string>;
   documentRequests: DocumentRequest[];
   alreadySubmitted: boolean;
+  language: "lt" | "en";
 }
 
 const inputCls =
@@ -43,8 +44,14 @@ export default function EddForm({
   initialAnswers,
   documentRequests,
   alreadySubmitted,
+  language,
 }: EddFormProps) {
   const questions = getEddQuestions(purposeOfRelationship);
+
+  // Translation helper — returns Lithuanian or English string based on language prop
+  function t(lt: string, en: string): string {
+    return language === "en" ? en : lt;
+  }
 
   const [answers, setAnswers]           = useState<Record<string, string>>(initialAnswers);
   const [errors, setErrors]             = useState<Record<string, string>>({});
@@ -77,7 +84,7 @@ export default function EddForm({
         body: file,
         headers: { "Content-Type": file.type || "application/octet-stream" },
       });
-      if (!uploadRes.ok) throw new Error("File upload failed");
+      if (!uploadRes.ok) throw new Error(t("Failo įkėlimas nepavyko", "File upload failed"));
 
       const recordRes = await recordEddDocumentAction(token, {
         file_name:  file.name,
@@ -93,7 +100,7 @@ export default function EddForm({
         [slotKey]: { file_name: file.name, file_path: urlRes.path, file_size: file.size, mime_type: file.type },
       }));
     } catch (e) {
-      setUploadErrors((prev) => ({ ...prev, [slotKey]: e instanceof Error ? e.message : "Upload failed" }));
+      setUploadErrors((prev) => ({ ...prev, [slotKey]: e instanceof Error ? e.message : t("Įkėlimas nepavyko", "Upload failed") }));
     } finally {
       setUploadPending((prev) => ({ ...prev, [slotKey]: false }));
     }
@@ -105,14 +112,14 @@ export default function EddForm({
     for (const q of questions) {
       if (q.condition && !q.condition(answers)) continue;
       if (q.required && !answers[q.key]?.trim()) {
-        newErrors[q.key] = "This field is required / Šis laukas privalomas";
+        newErrors[q.key] = t("Šis laukas privalomas", "This field is required");
       }
     }
 
     // Required document requests
     for (const req of documentRequests) {
       if (req.is_required && !uploads[req.id]) {
-        newErrors[`doc_${req.id}`] = "This document is required / Šis dokumentas privalomas";
+        newErrors[`doc_${req.id}`] = t("Šis dokumentas privalomas", "This document is required");
       }
     }
 
@@ -155,16 +162,14 @@ export default function EddForm({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Thank you!</h1>
-          <p className="text-slate-500 text-sm mb-4">
-            Your EDD questionnaire has been submitted successfully. Our compliance team will review your
-            answers and contact you if any further information is needed.
-          </p>
-          <hr className="my-5 border-slate-100" />
-          <h2 className="text-lg font-semibold text-slate-800 mb-2">Ačiū!</h2>
+          <h1 className="text-2xl font-bold text-slate-900 mb-3">
+            {t("Ačiū!", "Thank you!")}
+          </h1>
           <p className="text-slate-500 text-sm">
-            Jūsų EDD anketa sėkmingai pateikta. Mūsų atitikties komanda peržiūrės jūsų atsakymus
-            ir susisieks, jei reikės papildomos informacijos.
+            {t(
+              "Jūsų EDD anketa sėkmingai pateikta. Mūsų atitikties komanda peržiūrės jūsų atsakymus ir susisieks, jei reikės papildomos informacijos.",
+              "Your EDD questionnaire has been submitted successfully. Our compliance team will review your answers and contact you if any further information is needed."
+            )}
           </p>
         </div>
       </div>
@@ -177,10 +182,14 @@ export default function EddForm({
       <div className="bg-red-800 text-white py-8 px-6">
         <div className="max-w-2xl mx-auto">
           <p className="text-red-200 text-sm font-medium uppercase tracking-wide mb-1">
-            Enhanced Due Diligence · Sustiprintas deramas patikrinimas
+            {t("Sustiprintas deramas patikrinimas", "Enhanced Due Diligence")}
           </p>
-          <h1 className="text-2xl font-bold">EDD Questionnaire / EDD anketa</h1>
-          <p className="text-red-200 text-sm mt-1">Dear {clientName} · Gerbiamas(-a) {clientName}</p>
+          <h1 className="text-2xl font-bold">
+            {t("EDD anketa", "EDD Questionnaire")}
+          </h1>
+          <p className="text-red-200 text-sm mt-1">
+            {t(`Gerbiamas(-a) ${clientName}`, `Dear ${clientName}`)}
+          </p>
         </div>
       </div>
 
@@ -188,22 +197,20 @@ export default function EddForm({
       <div className="max-w-2xl mx-auto px-6 pt-6">
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-2">
           <p className="text-sm text-amber-800 font-medium">
-            <strong>EN:</strong> As a Politically Exposed Person, you are required to complete this
-            Enhanced Due Diligence questionnaire. All fields marked with * are mandatory.
-          </p>
-          <p className="text-sm text-amber-800 mt-2">
-            <strong>LT:</strong> Kaip politiškai paveiktas asmuo (PEP), privalote užpildyti šią
-            EDD anketą. Visi laukai, pažymėti *, yra privalomi.
+            {t(
+              "Kaip politiškai paveiktas asmuo (PEP), privalote užpildyti šią EDD anketą. Visi laukai, pažymėti *, yra privalomi.",
+              "As a Politically Exposed Person, you are required to complete this Enhanced Due Diligence questionnaire. All fields marked with * are mandatory."
+            )}
           </p>
         </div>
 
         {alreadySubmitted && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-2 mt-2">
             <p className="text-sm text-blue-800">
-              <strong>EN:</strong> Your previous answers have been pre-filled. Please review and update as needed, then resubmit.
-            </p>
-            <p className="text-sm text-blue-800 mt-1">
-              <strong>LT:</strong> Jūsų ankstesni atsakymai užpildyti iš anksto. Peržiūrėkite ir atnaujinkite prireikus, tada pateikite iš naujo.
+              {t(
+                "Jūsų ankstesni atsakymai užpildyti iš anksto. Peržiūrėkite ir atnaujinkite prireikus, tada pateikite iš naujo.",
+                "Your previous answers have been pre-filled. Please review and update as needed, then resubmit."
+              )}
             </p>
           </div>
         )}
@@ -217,6 +224,7 @@ export default function EddForm({
             const isVisible = !q.condition || q.condition(answers);
             if (!isVisible) return null;
             const hasError = !!errors[q.key];
+            const label = language === "en" ? q.labelEn : q.labelLt;
 
             return (
               <div
@@ -224,11 +232,10 @@ export default function EddForm({
                 data-error={hasError ? "true" : undefined}
                 className="bg-white rounded-xl border border-slate-200 p-5"
               >
-                <label className="block text-sm font-semibold text-slate-800 mb-0.5">
-                  {q.labelEn}
+                <label className="block text-sm font-semibold text-slate-800 mb-3">
+                  {label}
                   {q.required && <span className="text-red-500 ml-1">*</span>}
                 </label>
-                <p className="text-xs text-slate-400 italic mb-3">{q.labelLt}</p>
 
                 {q.type === "textarea" && (
                   <textarea
@@ -236,7 +243,7 @@ export default function EddForm({
                     className={hasError ? inputCls.replace("border-slate-300", "border-red-400") : inputCls}
                     value={answers[q.key] ?? ""}
                     onChange={(e) => set(q.key, e.target.value)}
-                    placeholder="Your answer / Jūsų atsakymas"
+                    placeholder={t("Jūsų atsakymas", "Your answer")}
                   />
                 )}
                 {q.type === "text" && (
@@ -245,7 +252,7 @@ export default function EddForm({
                     className={hasError ? inputCls.replace("border-slate-300", "border-red-400") : inputCls}
                     value={answers[q.key] ?? ""}
                     onChange={(e) => set(q.key, e.target.value)}
-                    placeholder="Your answer / Jūsų atsakymas"
+                    placeholder={t("Jūsų atsakymas", "Your answer")}
                   />
                 )}
                 {q.type === "select" && q.options && (
@@ -254,10 +261,10 @@ export default function EddForm({
                     value={answers[q.key] ?? ""}
                     onChange={(e) => set(q.key, e.target.value)}
                   >
-                    <option value="">Select / Pasirinkite</option>
+                    <option value="">{t("Pasirinkite", "Select")}</option>
                     {q.options.map((opt) => (
                       <option key={opt.value} value={opt.value}>
-                        {opt.labelEn} / {opt.labelLt}
+                        {language === "en" ? opt.labelEn : opt.labelLt}
                       </option>
                     ))}
                   </select>
@@ -274,7 +281,9 @@ export default function EddForm({
                           onChange={() => set(q.key, opt.value)}
                           className="accent-red-700"
                         />
-                        <span className="text-sm text-slate-700">{opt.labelEn} / {opt.labelLt}</span>
+                        <span className="text-sm text-slate-700">
+                          {language === "en" ? opt.labelEn : opt.labelLt}
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -284,23 +293,26 @@ export default function EddForm({
             );
           })}
 
-          {/* Documents section */}
-          {(documentRequests.length > 0) && (
+          {/* Requested documents section */}
+          {documentRequests.length > 0 && (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="px-5 py-3.5 border-b border-slate-100">
                 <h2 className="text-sm font-semibold text-slate-800">
-                  Documents required / Reikalingi dokumentai
+                  {t("Prašomi dokumentai", "Requested documents")}
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Please upload each requested document. / Prašome įkelti kiekvieną reikalaujamą dokumentą.
+                  {t(
+                    "Prašome įkelti kiekvieną reikalaujamą dokumentą.",
+                    "Please upload each requested document."
+                  )}
                 </p>
               </div>
               <div className="divide-y divide-slate-100">
                 {documentRequests.map((req) => {
-                  const uploaded    = uploads[req.id];
-                  const pending     = uploadPending[req.id];
-                  const uploadErr   = uploadErrors[req.id];
-                  const docError    = errors[`doc_${req.id}`];
+                  const uploaded  = uploads[req.id];
+                  const pending   = uploadPending[req.id];
+                  const uploadErr = uploadErrors[req.id];
+                  const docError  = errors[`doc_${req.id}`];
 
                   return (
                     <div
@@ -314,7 +326,9 @@ export default function EddForm({
                             {req.document_name}
                             {req.is_required
                               ? <span className="text-red-500 ml-1">*</span>
-                              : <span className="ml-2 text-xs text-slate-400 font-normal">Optional / Neprivaloma</span>
+                              : <span className="ml-2 text-xs text-slate-400 font-normal">
+                                  {t("Neprivaloma", "Optional")}
+                                </span>
                             }
                           </p>
                           {req.description && (
@@ -323,7 +337,7 @@ export default function EddForm({
                         </div>
                         {req.is_required && (
                           <span className="shrink-0 px-2 py-0.5 bg-red-50 text-red-600 text-xs font-semibold rounded-full">
-                            Required
+                            {t("Privaloma", "Required")}
                           </span>
                         )}
                       </div>
@@ -342,7 +356,7 @@ export default function EddForm({
                             }}
                             className="ml-auto text-xs text-slate-400 hover:text-red-500 shrink-0"
                           >
-                            Replace
+                            {t("Pakeisti", "Replace")}
                           </button>
                         </div>
                       ) : (
@@ -361,7 +375,9 @@ export default function EddForm({
                               </svg>
                             )}
                             <span className="text-sm text-slate-500">
-                              {pending ? "Uploading… / Įkeliama…" : "Click to upload / Spustelėkite norėdami įkelti"}
+                              {pending
+                                ? t("Įkeliama…", "Uploading…")
+                                : t("Spustelėkite norėdami įkelti", "Click to upload")}
                             </span>
                             <input
                               ref={(el) => { fileInputRefs.current[req.id] = el; }}
@@ -385,22 +401,24 @@ export default function EddForm({
             </div>
           )}
 
-          {/* Additional documents */}
+          {/* Additional documents (generic, optional) */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="px-5 py-3.5 border-b border-slate-100">
               <h2 className="text-sm font-semibold text-slate-800">
-                Additional documents / Papildomi dokumentai
+                {t("Papildomi dokumentai (neprivaloma)", "Additional documents (optional)")}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Upload any additional supporting documents (optional). / Įkelkite papildomus palaikomuosius dokumentus (neprivaloma).
+                {t(
+                  "Įkelkite papildomus palaikomuosius dokumentus, jei turite.",
+                  "Upload any additional supporting documents if you have them."
+                )}
               </p>
             </div>
             <div className="px-5 py-4 space-y-3">
-              {/* Show already uploaded additional docs */}
               {Array.from({ length: additionalCount }).map((_, i) => {
-                const key      = `additional_${i}`;
-                const uploaded = uploads[key];
-                const pending  = uploadPending[key];
+                const key       = `additional_${i}`;
+                const uploaded  = uploads[key];
+                const pending   = uploadPending[key];
                 const uploadErr = uploadErrors[key];
 
                 return (
@@ -428,7 +446,9 @@ export default function EddForm({
                             </svg>
                           )}
                           <span className="text-sm text-slate-500">
-                            {pending ? "Uploading… / Įkeliama…" : "Choose file / Pasirinkite failą"}
+                            {pending
+                              ? t("Įkeliama…", "Uploading…")
+                              : t("Pasirinkite failą", "Choose file")}
                           </span>
                           <input
                             type="file"
@@ -456,7 +476,7 @@ export default function EddForm({
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Upload additional document / Įkelti papildomą dokumentą
+                {t("Įkelti papildomą dokumentą", "Upload additional document")}
               </button>
             </div>
           </div>
@@ -469,9 +489,10 @@ export default function EddForm({
 
           <div className="bg-white rounded-xl border border-slate-200 p-5">
             <p className="text-xs text-slate-500 mb-4">
-              By submitting this form I confirm that all information provided is accurate and complete to
-              the best of my knowledge. / Pateikdamas(-a) šią anketą patvirtinu, kad visa pateikta
-              informacija yra tiksli ir išsami pagal mano žinias.
+              {t(
+                "Pateikdamas(-a) šią anketą patvirtinu, kad visa pateikta informacija yra tiksli ir išsami pagal mano žinias.",
+                "By submitting this form I confirm that all information provided is accurate and complete to the best of my knowledge."
+              )}
             </p>
             <button
               type="submit"
@@ -480,10 +501,10 @@ export default function EddForm({
                 hover:bg-red-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isPending
-                ? "Submitting… / Pateikiama…"
+                ? t("Pateikiama…", "Submitting…")
                 : alreadySubmitted
-                  ? "Resubmit EDD Questionnaire / Pateikti EDD anketą iš naujo"
-                  : "Submit EDD Questionnaire / Pateikti EDD anketą"}
+                  ? t("Pateikti EDD anketą iš naujo", "Resubmit EDD Questionnaire")
+                  : t("Pateikti EDD anketą", "Submit EDD Questionnaire")}
             </button>
           </div>
         </div>

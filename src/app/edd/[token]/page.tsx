@@ -13,7 +13,7 @@ export default async function EddPage({ params }: EddPageProps) {
   const { data: edd } = await admin
     .from("edd_questionnaires")
     .select(`
-      id, status, client_id,
+      id, status, client_id, token_language,
       clients!inner(
         individual_details(first_name, last_name, purpose_of_relationship)
       )
@@ -103,6 +103,7 @@ export default async function EddPage({ params }: EddPageProps) {
     .order("sort_order", { ascending: true });
 
   const alreadySubmitted = edd.status === "client_completed";
+  const language = ((edd as { token_language?: unknown }).token_language === "en" ? "en" : "lt") as "lt" | "en";
 
   return (
     <EddForm
@@ -114,6 +115,7 @@ export default async function EddPage({ params }: EddPageProps) {
         id: string; document_name: string; description: string | null; is_required: boolean; sort_order: number;
       }[]}
       alreadySubmitted={alreadySubmitted}
+      language={language}
     />
   );
 }
