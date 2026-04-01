@@ -42,7 +42,7 @@ export default function LoginForm({ logoUrl, companyName, initialError }: Props)
     const accessToken  = params.get("access_token");
     const refreshToken = params.get("refresh_token");
     const type         = params.get("type");
-    if (!accessToken || !refreshToken || type !== "recovery") return;
+    if (!accessToken || !refreshToken || (type !== "recovery" && type !== "invite")) return;
 
     const supabase = createClient();
     supabase.auth
@@ -62,7 +62,7 @@ export default function LoginForm({ logoUrl, companyName, initialError }: Props)
     setForgotLoading(true);
     const supabase = createClient();
     await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: `${window.location.origin}/auth/confirm`,
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
     });
     setForgotLoading(false);
     setForgotSent(true);
