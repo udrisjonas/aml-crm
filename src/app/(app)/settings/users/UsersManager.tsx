@@ -10,10 +10,12 @@ import {
   assignRoleAction,
   removeRoleAction,
   setUserActiveAction,
+  editUserAction,
   resendInviteEmailAction,
   resendInviteLinkAction,
   revokeInviteAction,
 } from "@/app/actions/users";
+import { useRoles } from "@/context/RolesContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -98,6 +100,175 @@ function Initials({ name, email }: { name: string | null; email: string }) {
   );
 }
 
+// ── Edit User Modal ───────────────────────────────────────────────────────────
+
+interface EditUserModalProps {
+  user: UserRow;
+  allRoles: Role[];
+  isPending: boolean;
+  onClose: () => void;
+  onSave: (
+    userId: string,
+    data: { fullName: string; email: string; roles: RoleName[]; isActive: boolean }
+  ) => void;
+}
+
+function EditUserModal({ user, allRoles, isPending, onClose, onSave }: EditUserModalProps) {
+  const currentRoles = (user.user_roles ?? []).map((ur) => ur.roles.name as RoleName);
+  const [editName, setEditName] = useState(user.full_name ?? "");
+  const [editEmail, setEditEmail] = useState(user.email);
+  const [editRoles, setEditRoles] = useState<RoleName[]>(currentRoles);
+  const [editIsActive, setEditIsActive] = useState(user.is_active);
+  const [editError, setEditError] = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setEditError("");
+    if (!editName.trim()) {
+      setEditError("Full name is required.");
+      return;
+    }
+    if (!editEmail.trim()) {
+      setEditError("Email is required.");
+      return;
+    }
+    onSave(user.id, {
+      fullName: editName.trim(),
+      email: editEmail.trim(),
+      roles: editRoles,
+      isActive: editIsActive,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-slate-800">Edit User</h3>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
+          >
+            ×
+          </button>
+        </div>
+
+        {editError && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            {editError}
+          </p>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Full name
+              </label>
+              <input
+                type="text"
+                required
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm
+                  text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500
+                  focus:border-transparent"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm
+                  text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500
+                  focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Roles
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {allRoles.map((role) => {
+                const checked = editRoles.includes(role.name as RoleName);
+                return (
+                  <label
+                    key={role.id}
+                    className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer
+                      transition-colors ${
+                        checked
+                          ? "border-blue-400 bg-blue-50"
+                          : "border-slate-200 hover:border-slate-300 bg-white"
+                      }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 accent-blue-600"
+                      checked={checked}
+                      onChange={(e) => {
+                        const name = role.name as RoleName;
+                        setEditRoles((prev) =>
+                          e.target.checked ? [...prev, name] : prev.filter((r) => r !== name)
+                        );
+                      }}
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-slate-800 capitalize">
+                        {role.name.replace(/_/g, " ")}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5 leading-tight">
+                        {role.description}
+                      </p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              id="edit-is-active"
+              type="checkbox"
+              checked={editIsActive}
+              onChange={(e) => setEditIsActive(e.target.checked)}
+              className="accent-blue-600"
+            />
+            <label htmlFor="edit-is-active" className="text-sm text-slate-700">
+              Active user
+            </label>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-sm text-slate-500 hover:text-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400
+                text-white text-sm font-medium rounded-lg transition"
+            >
+              {isPending ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function UsersManager({
@@ -106,7 +277,12 @@ export default function UsersManager({
   initialPendingInvites,
 }: Props) {
   const router = useRouter();
+  const { hasRole } = useRoles();
+  const isAdmin = hasRole("system_admin");
   const [isPending, startTransition] = useTransition();
+
+  // Edit user modal
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
 
   // Active users
   const [users, setUsers] = useState<UserRow[]>(initialUsers);
@@ -402,6 +578,53 @@ export default function UsersManager({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit user modal */}
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          allRoles={allRoles}
+          isPending={isPending}
+          onClose={() => setEditingUser(null)}
+          onSave={(userId, data) => {
+            startTransition(async () => {
+              try {
+                await editUserAction(userId, data);
+                setUsers((prev) =>
+                  prev.map((u) =>
+                    u.id === userId
+                      ? {
+                          ...u,
+                          full_name: data.fullName,
+                          email: data.email,
+                          is_active: data.isActive,
+                          user_roles: data.roles
+                            .map((rn) => {
+                              const role = allRoles.find((r) => r.name === rn);
+                              if (!role) return null;
+                              const existing = (u.user_roles ?? []).find(
+                                (ur) => ur.roles.name === rn
+                              );
+                              return existing ?? {
+                                id: crypto.randomUUID(),
+                                assigned_at: new Date().toISOString(),
+                                roles: role,
+                              };
+                            })
+                            .filter(Boolean) as UserRoleRow[],
+                        }
+                      : u
+                  )
+                );
+                setEditingUser(null);
+                router.refresh();
+              } catch (err) {
+                setTableError(err instanceof Error ? err.message : "Failed to save user");
+              }
+            });
+          }}
+        />
       )}
 
       {/* ── Add User card ──────────────────────────────────────────────────── */}
@@ -713,19 +936,30 @@ export default function UsersManager({
                     </td>
 
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() =>
-                          handleToggleActive(user.id, user.is_active)
-                        }
-                        disabled={isPending}
-                        className={`text-xs font-medium transition-colors ${
-                          user.is_active
-                            ? "text-red-500 hover:text-red-700"
-                            : "text-emerald-600 hover:text-emerald-800"
-                        }`}
-                      >
-                        {user.is_active ? "Archive" : "Restore"}
-                      </button>
+                      <div className="flex items-center gap-3 justify-end">
+                        {isAdmin && (
+                          <button
+                            onClick={() => setEditingUser(user)}
+                            disabled={isPending}
+                            className="text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          onClick={() =>
+                            handleToggleActive(user.id, user.is_active)
+                          }
+                          disabled={isPending}
+                          className={`text-xs font-medium transition-colors ${
+                            user.is_active
+                              ? "text-red-500 hover:text-red-700"
+                              : "text-emerald-600 hover:text-emerald-800"
+                          }`}
+                        >
+                          {user.is_active ? "Archive" : "Restore"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

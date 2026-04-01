@@ -30,6 +30,7 @@ interface Props {
 
 export default function SetPasswordForm({ email, fullName, roles, logoUrl, companyName }: Props) {
   const router = useRouter();
+  const [nameValue, setNameValue] = useState(fullName);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -40,6 +41,10 @@ export default function SetPasswordForm({ email, fullName, roles, logoUrl, compa
     e.preventDefault();
     setError("");
 
+    if (!nameValue.trim()) {
+      setError("Please enter your full name.");
+      return;
+    }
     if (password.length < 8) {
       setError("Password must be at least 8 characters.");
       return;
@@ -51,7 +56,7 @@ export default function SetPasswordForm({ email, fullName, roles, logoUrl, compa
 
     startTransition(async () => {
       try {
-        await completeInviteAction(password);
+        await completeInviteAction(password, nameValue.trim());
         router.push("/dashboard");
         router.refresh();
       } catch (err) {
@@ -102,12 +107,6 @@ export default function SetPasswordForm({ email, fullName, roles, logoUrl, compa
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
         {/* Account summary */}
         <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-          {fullName && (
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500">Name</span>
-              <span className="text-sm font-medium text-slate-800">{fullName}</span>
-            </div>
-          )}
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-500">Email</span>
             <span className="text-sm text-slate-700">{email}</span>
@@ -136,6 +135,23 @@ export default function SetPasswordForm({ email, fullName, roles, logoUrl, compa
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label htmlFor="full-name" className="block text-sm font-medium text-slate-700 mb-1.5">
+              Full name
+            </label>
+            <input
+              id="full-name"
+              type="text"
+              autoComplete="name"
+              required
+              value={nameValue}
+              onChange={(e) => setNameValue(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              placeholder="Jane Smith"
+            />
+          </div>
+
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
               Password

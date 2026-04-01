@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function completeInviteAction(password: string): Promise<void> {
+export async function completeInviteAction(password: string, fullName: string): Promise<void> {
   const supabase = createClient();
   const {
     data: { user },
@@ -29,11 +29,12 @@ export async function completeInviteAction(password: string): Promise<void> {
 
   if (inviteError) throw new Error(inviteError.message);
 
-  // 3. Update profile with the stored full_name (profile row was auto-created
-  //    by the handle_new_user trigger when the invite was sent)
+  // 3. Save full_name from the form (user-submitted), falling back to the invite
+  //    record if the form value is blank (shouldn't happen but safe to guard).
+  const resolvedName = fullName.trim() || invite?.full_name || "";
   await admin
     .from("profiles")
-    .update({ full_name: invite?.full_name ?? "" })
+    .update({ full_name: resolvedName })
     .eq("id", user.id);
 
   if (invite && invite.roles.length > 0) {

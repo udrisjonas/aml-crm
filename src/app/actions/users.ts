@@ -342,6 +342,62 @@ export async function removeRoleAction(userRoleId: string) {
   }
 }
 
+export async function editUserAction(
+  userId: string,
+  data: { fullName: string; email: string; roles: RoleName[]; isActive: boolean }
+): Promise<void> {
+  try {
+    const caller = await assertSystemAdmin();
+    const admin = createAdminClient();
+
+    // Update auth record (email + display name)
+    const { error: authError } = await admin.auth.admin.updateUserById(userId, {
+      email: data.email,
+      user_metadata: { full_name: data.fullName },
+    });
+    if (authError) throw new Error(authError.message);
+
+    // Update profile
+    const profileUpdate: Record<string, unknown> = {
+      full_name: data.fullName,
+      is_active: data.isActive,
+      archived_at: data.isActive ? null : new Date().toISOString(),
+    };
+    const { error: profileError } = await admin
+      .from("profiles")
+      .update(profileUpdate)
+      .eq("id", userId);
+    if (profileError) throw new Error(profileError.message);
+
+    // Replace roles atomically: delete all current, insert new set
+    const { error: deleteError } = await admin
+      .from("user_roles")
+      .delete()
+      .eq("user_id", userId);
+    if (deleteError) throw new Error(deleteError.message);
+
+    if (data.roles.length > 0) {
+      const { data: roleRows, error: rolesError } = await admin
+        .from("roles")
+        .select("id, name")
+        .in("name", data.roles);
+      if (rolesError) throw new Error(rolesError.message);
+
+      if (roleRows && roleRows.length > 0) {
+        const { error: insertError } = await admin.from("user_roles").insert(
+          roleRows.map((r) => ({ user_id: userId, role_id: r.id, assigned_by: caller.id }))
+        );
+        if (insertError) throw new Error(insertError.message);
+      }
+    }
+
+    revalidatePath("/settings/users");
+  } catch (err) {
+    console.error("[editUserAction]", err);
+    throw err;
+  }
+}
+
 export async function setUserActiveAction(userId: string, isActive: boolean) {
   try {
     await assertSystemAdmin();
