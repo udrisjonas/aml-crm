@@ -43,8 +43,7 @@ export default function LoginForm({ logoUrl, companyName, initialError }: Props)
           setError("Session could not be established. Please request a new invite link.");
           return;
         }
-        router.push("/set-password");
-        router.refresh();
+        window.location.href = "/set-password";
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
