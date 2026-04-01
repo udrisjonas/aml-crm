@@ -73,7 +73,8 @@ export async function createIndividualClientAction(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthenticated" };
 
-  const { data: userRoles } = await supabase
+  // Use admin client so the role lookup bypasses RLS and always returns results
+  const { data: userRoles } = await admin
     .from("user_roles")
     .select("roles(name)")
     .eq("user_id", user.id);
@@ -82,6 +83,9 @@ export async function createIndividualClientAction(
     (r) => extractRoleName(r)
   );
   const isBroker = roleNames.includes("broker");
+  const assignedBrokerId = isBroker ? user.id : (data.assigned_broker_id || null);
+
+  console.log("[createIndividualClientAction] user.id:", user.id, "| roles:", roleNames, "| assigned_broker_id:", assignedBrokerId);
 
   let newClientId: string;
 
@@ -91,7 +95,7 @@ export async function createIndividualClientAction(
       .insert({
         tenant_id: "default",
         client_type: "individual",
-        assigned_broker_id: isBroker ? user.id : (data.assigned_broker_id || null),
+        assigned_broker_id: assignedBrokerId,
         created_by: user.id,
         is_represented: data.is_represented,
         risk_rating: data.risk_rating || "not_assessed",
@@ -761,11 +765,10 @@ export async function reassignBrokerAction(
     roleNames.includes("senior_manager");
   if (!canReassign) return { error: "Forbidden: only system admins, AML officers, and senior managers can reassign brokers." };
 
-  const actorType = roleNames.includes("system_admin")
-    ? "system_admin"
-    : roleNames.includes("aml_officer")
+  // client_field_changes.changed_by_type constraint: ('broker','client','aml_officer','system')
+  const actorType: "aml_officer" | "system" = roleNames.includes("aml_officer")
     ? "aml_officer"
-    : "senior_manager";
+    : "system";
 
   const admin = createAdminClient();
 
