@@ -21,6 +21,34 @@ export default function LoginForm({ logoUrl, companyName, initialError }: Props)
 
   useEffect(() => { setLogoError(false); }, [logoUrl]);
 
+  // When Supabase delivers a recovery token via implicit flow (hash fragment),
+  // /auth/confirm cannot read it server-side and redirects to /login?error=invalid_invite
+  // with the valid session tokens sitting in the URL hash.
+  // Detect this case, establish the session client-side, then forward to /set-password.
+  useEffect(() => {
+    if (initialError !== "invalid_invite") return;
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const params = new URLSearchParams(hash);
+    const accessToken  = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    const type         = params.get("type");
+    if (!accessToken || !refreshToken || type !== "recovery") return;
+
+    const supabase = createClient();
+    supabase.auth
+      .setSession({ access_token: accessToken, refresh_token: refreshToken })
+      .then(({ error: sessionError }) => {
+        if (sessionError) {
+          setError("Session could not be established. Please request a new invite link.");
+          return;
+        }
+        router.push("/set-password");
+        router.refresh();
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
