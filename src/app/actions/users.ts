@@ -161,18 +161,30 @@ export async function resendInviteEmailAction(inviteId: string): Promise<void> {
 
     let actionLink: string;
     if (existingUser) {
-      // User already registered — use a recovery link so the invitee can set their password.
-      // generateLink({type:"recovery"}) returns hashed_token which works reliably with
-      // verifyOtp({token_hash, type:"recovery"}) in the SSR callback route.
-      // Magic-link type produces a session via the implicit flow (hash fragment) which the
-      // server-side /auth/confirm route cannot read, so verifyOtp for magiclink silently
-      // returns no session. Recovery is the explicitly documented SSR token_hash flow.
+      // User already registered — generate a recovery link and use action_link directly.
+      //
+      // WHY NOT hashed_token: generateLink.properties.hashed_token is the RAW OTP token
+      // (the value placed in action_link as ?token=RAW_OTP). Supabase's one_time_tokens
+      // table stores sha256(RAW_OTP) as token_hash. Passing hashed_token to
+      // verifyOtp({token_hash}) does a direct DB lookup of RAW_OTP ≠ sha256(RAW_OTP) → fails.
+      //
+      // WHY action_link works: When the invitee visits the action_link URL, Supabase's
+      // verify endpoint computes sha256(RAW_OTP), verifies it, then redirects to
+      // redirectTo?token_hash=sha256(RAW_OTP)&type=recovery — the ACTUAL hash that
+      // verifyOtp({token_hash}) needs. /auth/confirm then calls verifyOtp with that
+      // correct hash and the session is established.
+      //
+      // WHY recovery (not magiclink): magic link type uses implicit flow for existing users
+      // (redirects with #access_token fragment, invisible server-side). Recovery type uses
+      // the OTP token_hash redirect that /auth/confirm can handle.
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
         type: "recovery",
         email: invite.email,
+        options: { redirectTo: `${siteUrl}/auth/confirm` },
       });
       if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate link");
-      actionLink = `${siteUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=recovery`;
+      console.log("[resendInviteEmailAction] recovery link properties:", JSON.stringify(linkData.properties));
+      actionLink = linkData.properties.action_link;
     } else {
       // New user — use invite type
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
@@ -236,14 +248,16 @@ export async function resendInviteLinkAction(inviteId: string): Promise<string> 
 
     let actionLink: string;
     if (existingUser) {
-      // User already registered — use a recovery link so the invitee can set their password.
-      // See resendInviteEmailAction for full explanation.
+      // User already registered — use recovery action_link. See resendInviteEmailAction
+      // for full explanation of why action_link is used instead of hashed_token.
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
         type: "recovery",
         email: invite.email,
+        options: { redirectTo: `${siteUrl}/auth/confirm` },
       });
       if (linkError || !linkData) throw new Error(linkError?.message ?? "Failed to generate link");
-      actionLink = `${siteUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=recovery`;
+      console.log("[resendInviteLinkAction] recovery link properties:", JSON.stringify(linkData.properties));
+      actionLink = linkData.properties.action_link;
     } else {
       // New user — use invite type
       const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({

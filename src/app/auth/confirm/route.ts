@@ -37,8 +37,11 @@ export async function GET(request: NextRequest) {
     }
   );
 
+  console.log("[/auth/confirm] params — code:", !!code, "token_hash:", token_hash?.slice(0, 12) + "...", "type:", type);
+
   // ── PKCE flow ─────────────────────────────────────────────────────────────
   if (code) {
+    console.log("[/auth/confirm] taking PKCE path");
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
       console.error("[/auth/confirm] exchangeCodeForSession failed:", error.message);
@@ -49,17 +52,17 @@ export async function GET(request: NextRequest) {
 
   // ── Email OTP flow ────────────────────────────────────────────────────────
   if (token_hash && type) {
+    console.log("[/auth/confirm] taking OTP path. verifyOtp({ token_hash: [", token_hash.length, "chars], type:", type, "})");
     const { data, error } = await supabase.auth.verifyOtp({ token_hash, type });
     if (error) {
-      console.error("[/auth/confirm] verifyOtp failed:", error.message);
+      console.error("[/auth/confirm] verifyOtp failed:", error.message, "| type:", type, "| token_hash length:", token_hash.length);
       return NextResponse.redirect(errorUrl);
     }
     if (!data.session) {
-      // verifyOtp returned no error but also no session — token type incompatible
-      // with server-side OTP verification (e.g. magiclink uses implicit/hash flow).
-      console.error("[/auth/confirm] verifyOtp succeeded but returned no session. type:", type);
+      console.error("[/auth/confirm] verifyOtp returned no session. type:", type, "user:", data.user?.email ?? "null");
       return NextResponse.redirect(errorUrl);
     }
+    console.log("[/auth/confirm] session established for:", data.user?.email);
     return successResponse;
   }
 
