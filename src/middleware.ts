@@ -48,6 +48,29 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Archived user check — runs for every authenticated request so archived users
+  // cannot access any protected route even with a valid session.
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("archived_at")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.archived_at != null) {
+      await supabase.auth.signOut();
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = "?error=account_deactivated";
+      const redirectResponse = NextResponse.redirect(url);
+      // Copy session-clearing cookies set by signOut onto the redirect response
+      supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
+        redirectResponse.cookies.set(name, value);
+      });
+      return redirectResponse;
+    }
+  }
+
   // Authenticated user hitting /login → /dashboard
   if (pathname.startsWith("/login") && user) {
     const url = request.nextUrl.clone();

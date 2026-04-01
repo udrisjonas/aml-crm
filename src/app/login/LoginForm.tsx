@@ -16,7 +16,11 @@ export default function LoginForm({ logoUrl, companyName, initialError }: Props)
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(initialError ?? "");
+  const resolvedInitialError =
+    initialError === "account_deactivated"
+      ? "Your account has been deactivated. Contact your administrator."
+      : (initialError ?? "");
+  const [error, setError] = useState(resolvedInitialError);
   const [logoError, setLogoError] = useState(false);
 
   const [view, setView] = useState<"login" | "forgot">("login");
