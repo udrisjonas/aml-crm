@@ -15,6 +15,7 @@ import {
   getDocumentSignedUrlAction,
   generateKycTokenAction,
   invalidateKycTokenAction,
+  reassignBrokerAction,
   type IndividualDetailsUpdate,
 } from "@/app/actions/clients";
 import {
@@ -22,7 +23,7 @@ import {
   approveRevivalAction,
   rejectRevivalAction,
 } from "@/app/actions/termination";
-import type { RelationshipOption } from "@/app/(app)/clients/new/page";
+import type { RelationshipOption, BrokerOption } from "@/app/(app)/clients/new/page";
 import { validateLithuanianPersonalCode } from "@/lib/validation/lithuanianPersonalCode";
 import EddTab from "./EddTab";
 import { useRoles } from "@/context/RolesContext";
@@ -1845,7 +1846,21 @@ const FIELD_LABELS: Record<string, string> = {
   last_reviewed_by: "Last reviewed by",
 };
 
-function AuditTab({ fieldChanges }: { fieldChanges: FieldChange[] }) {
+function AuditTab({
+  fieldChanges,
+  brokerMap,
+}: {
+  fieldChanges: FieldChange[];
+  brokerMap: Map<string, string>;
+}) {
+  function resolveValue(fieldName: string, value: string | null): string | null {
+    if (!value) return value;
+    if (fieldName === "assigned_broker_id") {
+      return brokerMap.get(value) ?? `${value.slice(0, 8)}…`;
+    }
+    return value;
+  }
+
   if (fieldChanges.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
@@ -1881,10 +1896,10 @@ function AuditTab({ fieldChanges }: { fieldChanges: FieldChange[] }) {
                   {FIELD_LABELS[ch.field_name] ?? ch.field_name}
                 </td>
                 <td className="px-5 py-3 text-slate-400 max-w-[180px] truncate">
-                  {ch.old_value || <span className="italic">empty</span>}
+                  {resolveValue(ch.field_name, ch.old_value) || <span className="italic">empty</span>}
                 </td>
                 <td className="px-5 py-3 text-slate-700 max-w-[180px] truncate">
-                  {ch.new_value || <span className="italic text-slate-400">empty</span>}
+                  {resolveValue(ch.field_name, ch.new_value) || <span className="italic text-slate-400">empty</span>}
                 </td>
                 <td className="px-5 py-3">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${
@@ -1931,6 +1946,7 @@ export default function ClientDetail({
   eddDocuments = [],
   eddDocumentRequests = [],
   pendingRevival = null,
+  brokers = [],
 }: {
   client: ClientData;
   documents: DocumentRecord[];
@@ -1944,6 +1960,7 @@ export default function ClientDetail({
   eddDocuments?: EddDocument[];
   eddDocumentRequests?: EddDocumentRequest[];
   pendingRevival?: PendingRevival | null;
+  brokers?: BrokerOption[];
 }) {
   const router = useRouter();
   const { hasRole } = useRoles();
@@ -1953,9 +1970,17 @@ export default function ClientDetail({
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showRevivalModal, setShowRevivalModal] = useState(false);
   const [invalidatePending, startInvalidateTransition] = useTransition();
+  const [showBrokerPicker, setShowBrokerPicker] = useState(false);
+  const [brokerPickerValue, setBrokerPickerValue] = useState(client.broker?.id ?? "");
+  const [brokerReassigning, startBrokerTransition] = useTransition();
+  const [brokerReassignError, setBrokerReassignError] = useState("");
+  const [brokerReassignSuccess, setBrokerReassignSuccess] = useState(false);
   const d = client.individual_details;
 
   const isArchived = client.client_status === "archived";
+  const canReassignBroker =
+    !isArchived &&
+    (hasRole("system_admin") || hasRole("aml_officer") || hasRole("senior_manager"));
   const canArchive =
     !isArchived &&
     (hasRole("aml_officer") || hasRole("broker") || hasRole("system_admin"));
@@ -1984,6 +2009,24 @@ export default function ClientDetail({
   function handleResend() {
     setShowSendModal(true);
   }
+
+  function handleBrokerReassign(newBrokerId: string) {
+    setBrokerReassignError("");
+    setBrokerReassignSuccess(false);
+    startBrokerTransition(async () => {
+      const result = await reassignBrokerAction(client.id, newBrokerId || null);
+      if (result?.error) {
+        setBrokerReassignError(result.error);
+      } else {
+        setBrokerReassignSuccess(true);
+        setShowBrokerPicker(false);
+        router.refresh();
+      }
+    });
+  }
+
+  const brokerList = brokers ?? [];
+  const brokerMap = new Map(brokerList.map((b) => [b.id, b.full_name ?? b.id]));
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -2041,14 +2084,73 @@ export default function ClientDetail({
                 <Badge cls={kycBadge.cls}>{kycBadge.label}</Badge>
                 <Badge cls={riskBadge.cls}>{riskBadge.label}</Badge>
               </div>
-              <p className="text-sm text-slate-500 mt-1.5">
-                {client.broker?.full_name
-                  ? <>Assigned to <span className="font-medium text-slate-700">{client.broker.full_name}</span></>
-                  : "No broker assigned"
-                }
-                <span className="mx-1.5 text-slate-300">·</span>
-                Added {fmt(client.created_at)}
-              </p>
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                {showBrokerPicker && canReassignBroker ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      className="text-sm border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 bg-white
+                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={brokerPickerValue}
+                      onChange={(e) => setBrokerPickerValue(e.target.value)}
+                      disabled={brokerReassigning}
+                    >
+                      <option value="">— Unassigned —</option>
+                      {brokerList.map((b) => (
+                        <option key={b.id} value={b.id}>{b.full_name ?? b.id}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={brokerReassigning}
+                      onClick={() => handleBrokerReassign(brokerPickerValue)}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400
+                        text-white text-xs font-medium rounded-lg transition-colors"
+                    >
+                      {brokerReassigning ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={brokerReassigning}
+                      onClick={() => { setShowBrokerPicker(false); setBrokerReassignError(""); }}
+                      className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs
+                        font-medium rounded-lg hover:bg-slate-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    {brokerReassignError && (
+                      <span className="text-xs text-red-600">{brokerReassignError}</span>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-sm text-slate-500">
+                      {client.broker?.full_name
+                        ? <>Assigned to <span className="font-medium text-slate-700">{client.broker.full_name}</span></>
+                        : "No broker assigned"
+                      }
+                    </span>
+                    {canReassignBroker && brokerList.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBrokerPickerValue(client.broker?.id ?? "");
+                          setBrokerReassignError("");
+                          setBrokerReassignSuccess(false);
+                          setShowBrokerPicker(true);
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        Change
+                      </button>
+                    )}
+                    {brokerReassignSuccess && (
+                      <span className="text-xs text-emerald-600 font-medium">Saved</span>
+                    )}
+                  </>
+                )}
+                <span className="text-slate-300 text-sm">·</span>
+                <span className="text-sm text-slate-500">Added {fmt(client.created_at)}</span>
+              </div>
 
               {/* Active token status bar */}
               {activeToken && (
@@ -2231,7 +2333,7 @@ export default function ClientDetail({
         {activeTab === "kyc"        && <KycDetailsTab client={client} purposeOptions={purposeOptions} frequencyOptions={frequencyOptions} useOptions={useOptions} />}
         {activeTab === "documents"  && <DocumentsTab client={client} documents={documents} />}
         {activeTab === "risk"       && <RiskTab client={client} />}
-        {activeTab === "audit"      && <AuditTab fieldChanges={fieldChanges} />}
+        {activeTab === "audit"      && <AuditTab fieldChanges={fieldChanges} brokerMap={brokerMap} />}
         {activeTab === "edd"        && (
           <EddTab
             clientId={client.id}

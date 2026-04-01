@@ -9,6 +9,11 @@ export interface RelationshipOption {
   label_en: string;
 }
 
+export interface BrokerOption {
+  id: string;
+  full_name: string | null;
+}
+
 function parseOptions(raw: unknown): RelationshipOption[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter(
@@ -44,11 +49,30 @@ export default async function NewClientPage() {
   const find = (key: string) =>
     parseOptions(templateRows?.find((r) => r.field_key === key)?.options_lt);
 
+  // Fetch active broker users for the optional broker picker
+  const { data: brokerRoles } = await admin
+    .from("user_roles")
+    .select("user_id, roles!inner(name)")
+    .eq("roles.name", "broker");
+
+  const brokerUserIds = (brokerRoles ?? []).map((r) => (r as { user_id: string }).user_id);
+  let brokers: BrokerOption[] = [];
+  if (brokerUserIds.length > 0) {
+    const { data } = await admin
+      .from("profiles")
+      .select("id, full_name")
+      .eq("is_active", true)
+      .in("id", brokerUserIds)
+      .order("full_name");
+    brokers = (data ?? []) as BrokerOption[];
+  }
+
   return (
     <NewClientWizard
       purposeOptions={find("relationship_purpose")}
       frequencyOptions={find("relationship_frequency")}
       useOptions={find("relationship_use_individual")}
+      brokers={brokers}
     />
   );
 }

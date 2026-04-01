@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import ClientDetail from "./ClientDetail";
-import type { RelationshipOption } from "@/app/(app)/clients/new/page";
+import type { RelationshipOption, BrokerOption } from "@/app/(app)/clients/new/page";
 
 function parseOptions(raw: unknown): RelationshipOption[] {
   if (!Array.isArray(raw)) return [];
@@ -147,6 +147,24 @@ export default async function ClientDetailPage({
     clientAppliesTo === "individual" ? "relationship_use_individual" : "relationship_use_legal_entity"
   );
 
+  // Fetch active broker users for the reassignment picker
+  const { data: brokerRoles } = await admin
+    .from("user_roles")
+    .select("user_id, roles!inner(name)")
+    .eq("roles.name", "broker");
+
+  const brokerUserIds = (brokerRoles ?? []).map((r) => (r as { user_id: string }).user_id);
+  let brokers: BrokerOption[] = [];
+  if (brokerUserIds.length > 0) {
+    const { data: brokerProfiles } = await admin
+      .from("profiles")
+      .select("id, full_name")
+      .eq("is_active", true)
+      .in("id", brokerUserIds)
+      .order("full_name");
+    brokers = (brokerProfiles ?? []) as BrokerOption[];
+  }
+
   if (clientError || !client) redirect("/clients");
 
   // Normalise PostgREST embeds (1:1 joins may come as array or object)
@@ -182,6 +200,7 @@ export default async function ClientDetailPage({
       eddDocuments={(eddDocuments ?? []) as never}
       eddDocumentRequests={(eddDocumentRequests ?? []) as never}
       pendingRevival={(pendingRevival ?? null) as never}
+      brokers={brokers}
     />
   );
 }

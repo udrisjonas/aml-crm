@@ -142,6 +142,13 @@ export default function ClientsTable({
   const canAddClient =
     hasRole("broker") || hasRole("aml_officer") || hasRole("system_admin");
 
+  // Brokers always see only their own clients — the assigned broker column is redundant for them
+  const showBrokerCol =
+    !hasRole("broker") ||
+    hasRole("system_admin") ||
+    hasRole("aml_officer") ||
+    hasRole("senior_manager");
+
   // Sync search input when prop changes (e.g. back navigation)
   useEffect(() => { setSearchInput(search); }, [search]);
 
@@ -319,9 +326,11 @@ export default function ClientsTable({
                 <th className="text-left px-3 md:px-6 py-3 md:py-3.5">
                   <SortHeader col="client_type" label="Type" />
                 </th>
-                <th className="hidden md:table-cell text-left px-6 py-3.5 font-medium text-slate-500 text-xs uppercase tracking-wider">
-                  Assigned broker
-                </th>
+                {showBrokerCol && (
+                  <th className="hidden md:table-cell text-left px-6 py-3.5 font-medium text-slate-500 text-xs uppercase tracking-wider">
+                    Assigned broker
+                  </th>
+                )}
                 <th className="text-left px-3 md:px-6 py-3 md:py-3.5">
                   <SortHeader col="risk_rating" label="Risk" />
                 </th>
@@ -377,9 +386,11 @@ export default function ClientsTable({
                       </span>
                     </td>
 
-                    <td className="hidden md:table-cell px-6 py-4 text-slate-600">
-                      {client.broker?.full_name ?? <span className="text-slate-400">—</span>}
-                    </td>
+                    {showBrokerCol && (
+                      <td className="hidden md:table-cell px-6 py-4 text-slate-600">
+                        {client.broker?.full_name ?? <span className="text-slate-400">—</span>}
+                      </td>
+                    )}
 
                     <td className="px-3 md:px-6 py-2.5 md:py-4">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize

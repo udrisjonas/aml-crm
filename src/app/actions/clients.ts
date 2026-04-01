@@ -61,6 +61,7 @@ export interface CreateIndividualClientData {
   relationship_use: string;
   risk_rating: string;
   notes: string;
+  assigned_broker_id?: string | null;
 }
 
 export async function createIndividualClientAction(
@@ -90,7 +91,7 @@ export async function createIndividualClientAction(
       .insert({
         tenant_id: "default",
         client_type: "individual",
-        assigned_broker_id: isBroker ? user.id : null,
+        assigned_broker_id: isBroker ? user.id : (data.assigned_broker_id || null),
         created_by: user.id,
         is_represented: data.is_represented,
         risk_rating: data.risk_rating || "not_assessed",
@@ -734,6 +735,70 @@ export async function getClientSignedUploadUrlAction(
 
   if (error) return { error: error.message };
   return { signedUrl: data.signedUrl };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Broker reassignment
+// ══════════════════════════════════════════════════════════════════════════════
+
+export async function reassignBrokerAction(
+  clientId: string,
+  brokerId: string | null
+): Promise<{ error?: string }> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthenticated" };
+
+  const { data: userRoles } = await supabase
+    .from("user_roles")
+    .select("roles(name)")
+    .eq("user_id", user.id);
+
+  const roleNames = (userRoles ?? []).map((r) => extractRoleName(r));
+  const canReassign =
+    roleNames.includes("system_admin") ||
+    roleNames.includes("aml_officer") ||
+    roleNames.includes("senior_manager");
+  if (!canReassign) return { error: "Forbidden: only system admins, AML officers, and senior managers can reassign brokers." };
+
+  const actorType = roleNames.includes("system_admin")
+    ? "system_admin"
+    : roleNames.includes("aml_officer")
+    ? "aml_officer"
+    : "senior_manager";
+
+  const admin = createAdminClient();
+
+  // Invalidate any active KYC tokens so the new broker starts fresh
+  const { data: activeTokens } = await admin
+    .from("client_kyc_tokens")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("is_active", true)
+    .gt("expires_at", new Date().toISOString());
+
+  if (activeTokens && activeTokens.length > 0) {
+    const { error: tokenErr } = await admin
+      .from("client_kyc_tokens")
+      .update({ is_active: false, expires_at: new Date().toISOString() })
+      .in("id", activeTokens.map((t) => t.id));
+    if (tokenErr) {
+      console.error("[reassignBrokerAction] token invalidation failed:", tokenErr.message);
+    } else {
+      console.log(`[reassignBrokerAction] invalidated ${activeTokens.length} active KYC token(s) for client ${clientId} on broker reassignment`);
+    }
+  }
+
+  // Update broker assignment + set audit context in one DB transaction
+  const { error } = await admin.rpc("reassign_client_broker", {
+    p_client_id:  clientId,
+    p_broker_id:  brokerId,
+    p_actor_type: actorType,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/clients/${clientId}`);
+  return {};
 }
 
 export async function recordClientDocumentAction(

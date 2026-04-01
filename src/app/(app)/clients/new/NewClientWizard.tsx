@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { createIndividualClientAction, type CreateIndividualClientData } from "@/app/actions/clients";
 import { checkArchiveMatchAction, reviveClientAction, type ArchiveMatch } from "@/app/actions/termination";
 import { validateLithuanianPersonalCode } from "@/lib/validation/lithuanianPersonalCode";
-import type { RelationshipOption } from "./page";
+import type { RelationshipOption, BrokerOption } from "./page";
+import { useRoles } from "@/context/RolesContext";
 
 // ── Shared input style ────────────────────────────────────────────────────────
 const inputCls =
@@ -261,14 +262,18 @@ function StepIndividualForm({
   purposeOptions,
   frequencyOptions,
   useOptions,
+  brokers,
 }: {
   onBack: () => void;
   purposeOptions: RelationshipOption[];
   frequencyOptions: RelationshipOption[];
   useOptions: RelationshipOption[];
+  brokers: BrokerOption[];
 }) {
   const router = useRouter();
+  const { hasRole } = useRoles();
   const [form, setForm] = useState<CreateIndividualClientData>(defaultForm);
+  const [selectedBrokerId, setSelectedBrokerId] = useState("");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [personalCodeValid, setPersonalCodeValid] = useState<boolean | null>(null);
@@ -279,6 +284,11 @@ function StepIndividualForm({
   const [checkingArchive, setCheckingArchive] = useState(false);
   const [reviving, setReviving] = useState(false);
   const [revivalMessage, setRevivalMessage] = useState("");
+
+  // Show broker picker for roles that can assign a broker at creation time
+  const canAssignBroker =
+    brokers.length > 0 &&
+    (hasRole("system_admin") || hasRole("aml_officer") || hasRole("senior_manager"));
 
   function set<K extends keyof CreateIndividualClientData>(
     key: K,
@@ -369,7 +379,10 @@ function StepIndividualForm({
     }
     setError("");
     startTransition(async () => {
-      const result = await createIndividualClientAction(form);
+      const result = await createIndividualClientAction({
+        ...form,
+        assigned_broker_id: canAssignBroker ? (selectedBrokerId || null) : undefined,
+      });
       if (result?.error) setError(result.error);
     });
   }
@@ -781,6 +794,22 @@ function StepIndividualForm({
               placeholder="Any relevant observations, referral source, transaction context…"
             />
           </Field>
+          {canAssignBroker && (
+            <Field label="Assign to broker" hint="Optional — can be changed later on the client detail page.">
+              <select
+                className={selectCls}
+                value={selectedBrokerId}
+                onChange={(e) => setSelectedBrokerId(e.target.value)}
+              >
+                <option value="">— Unassigned —</option>
+                {brokers.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.full_name ?? b.id}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
         </Section>
 
         {/* ── Archive match banner ─────────────────────────────────────── */}
@@ -882,10 +911,12 @@ export default function NewClientWizard({
   purposeOptions,
   frequencyOptions,
   useOptions,
+  brokers,
 }: {
   purposeOptions: RelationshipOption[];
   frequencyOptions: RelationshipOption[];
   useOptions: RelationshipOption[];
+  brokers: BrokerOption[];
 }) {
   const [step, setStep] = useState<1 | 2>(1);
 
@@ -900,6 +931,7 @@ export default function NewClientWizard({
           purposeOptions={purposeOptions}
           frequencyOptions={frequencyOptions}
           useOptions={useOptions}
+          brokers={brokers}
         />
       )}
     </div>
