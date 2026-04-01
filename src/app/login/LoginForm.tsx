@@ -19,14 +19,19 @@ export default function LoginForm({ logoUrl, companyName, initialError }: Props)
   const [error, setError] = useState(initialError ?? "");
   const [logoError, setLogoError] = useState(false);
 
+  const [view, setView] = useState<"login" | "forgot">("login");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+
   useEffect(() => { setLogoError(false); }, [logoUrl]);
 
-  // When Supabase delivers a recovery token via implicit flow (hash fragment),
-  // /auth/confirm cannot read it server-side and redirects to /login?error=invalid_invite
-  // with the valid session tokens sitting in the URL hash.
-  // Detect this case, establish the session client-side, then forward to /set-password.
+  // Handles recovery tokens delivered via Supabase's implicit flow (hash fragment).
+  // Covers two cases:
+  //   - Invite flow: /auth/confirm fails server-side → /login?error=invalid_invite#access_token=...
+  //   - Password reset: /set-password fails server-side → /login?error=...#access_token=...
+  // The initialError check is intentionally absent so any valid recovery hash is handled.
   useEffect(() => {
-    if (initialError !== "invalid_invite") return;
     const hash = window.location.hash.slice(1);
     if (!hash) return;
     const params = new URLSearchParams(hash);
@@ -40,13 +45,24 @@ export default function LoginForm({ logoUrl, companyName, initialError }: Props)
       .setSession({ access_token: accessToken, refresh_token: refreshToken })
       .then(({ error: sessionError }) => {
         if (sessionError) {
-          setError("Session could not be established. Please request a new invite link.");
+          setError("Session could not be established. Please request a new link.");
           return;
         }
         window.location.href = "/set-password";
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotLoading(true);
+    const supabase = createClient();
+    await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/set-password`,
+    });
+    setForgotLoading(false);
+    setForgotSent(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -111,77 +127,137 @@ export default function LoginForm({ logoUrl, companyName, initialError }: Props)
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-          <h2 className="text-xl font-semibold text-slate-800 mb-6">
-            Sign in to your account
-          </h2>
+          {view === "login" ? (
+            <>
+              <h2 className="text-xl font-semibold text-slate-800 mb-6">
+                Sign in to your account
+              </h2>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
-            </div>
-          )}
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {error}
+                </div>
+              )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-slate-700 mb-1.5"
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-slate-700 mb-1.5"
+                  >
+                    Email address
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900
+                      placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500
+                      focus:border-transparent text-sm transition"
+                    placeholder="you@brokerage.com"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label
+                      htmlFor="password"
+                      className="block text-sm font-medium text-slate-700"
+                    >
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => { setError(""); setView("forgot"); }}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900
+                      placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500
+                      focus:border-transparent text-sm transition"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400
+                    text-white font-medium rounded-lg text-sm transition
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  {loading ? "Signing in…" : "Sign in"}
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-semibold text-slate-800 mb-2">
+                Reset your password
+              </h2>
+              <p className="text-sm text-slate-500 mb-6">
+                Enter your email and we&apos;ll send you a reset link.
+              </p>
+
+              {forgotSent ? (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                  If this email is registered, you will receive a reset link shortly.
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-5">
+                  <div>
+                    <label
+                      htmlFor="forgot-email"
+                      className="block text-sm font-medium text-slate-700 mb-1.5"
+                    >
+                      Email address
+                    </label>
+                    <input
+                      id="forgot-email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900
+                        placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500
+                        focus:border-transparent text-sm transition"
+                      placeholder="you@brokerage.com"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400
+                      text-white font-medium rounded-lg text-sm transition
+                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  >
+                    {forgotLoading ? "Sending…" : "Send reset link"}
+                  </button>
+                </form>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setView("login")}
+                className="mt-4 text-xs text-slate-500 hover:text-slate-700"
               >
-                Email address
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900
-                  placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500
-                  focus:border-transparent text-sm transition"
-                placeholder="you@brokerage.com"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-slate-700"
-                >
-                  Password
-                </label>
-                <a
-                  href="#"
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Forgot password?
-                </a>
-              </div>
-              <input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900
-                  placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500
-                  focus:border-transparent text-sm transition"
-                placeholder="••••••••"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400
-                text-white font-medium rounded-lg text-sm transition
-                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              {loading ? "Signing in…" : "Sign in"}
-            </button>
-          </form>
+                ← Back to sign in
+              </button>
+            </>
+          )}
         </div>
 
         <p className="text-center text-xs text-slate-400 mt-6">
